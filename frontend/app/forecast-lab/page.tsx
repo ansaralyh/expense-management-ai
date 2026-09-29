@@ -5,6 +5,7 @@ import Link from 'next/link';
 import AppLayout from '../../components/layout/AppLayout';
 import { advancedService, ForecastLabResult } from '../../services/advanced.service';
 import { ApiError } from '../../lib/api';
+import { normalizeForecastLabResult } from '../../lib/forecast-fallback';
 import { BrainCircuit, ChevronRight, RefreshCw, TrendingUp } from 'lucide-react';
 
 export default function ForecastLabPage() {
@@ -16,7 +17,8 @@ export default function ForecastLabPage() {
     setError('');
     setLoading(true);
     try {
-      setResult(await advancedService.forecast());
+      const raw = await advancedService.forecast();
+      setResult(normalizeForecastLabResult(raw));
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Unable to run the interval forecast.');
     } finally {
