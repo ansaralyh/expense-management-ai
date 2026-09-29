@@ -14,8 +14,8 @@ export const chartTheme = {
   mutedBar: '#D8D4CC',
   tooltipBg: '#FFFFFF',
   tooltipBorder: '#E6E2DA',
-  tooltipText: '#122033',
-  tickFontSize: 12,
+  tooltipText: '#1A1A1A',
+  tickFontSize: 11,
   legendFontSize: 13,
   palette: [
     '#1F6B56',
@@ -33,7 +33,7 @@ export const tooltipStyle: CSSProperties = {
   backgroundColor: chartTheme.tooltipBg,
   borderColor: chartTheme.tooltipBorder,
   borderRadius: '8px',
-  fontSize: '13px',
+  fontSize: '11pt',
   color: chartTheme.tooltipText,
   boxShadow: '0 8px 24px rgba(18, 32, 51, 0.08)',
 };

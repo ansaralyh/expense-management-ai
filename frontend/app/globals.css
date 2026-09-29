@@ -3,33 +3,58 @@
 @tailwind utilities;
 
 :root {
+  --font-sans: "Aptos", "Aptos Display", "Segoe UI", "Helvetica Neue", Arial, sans-serif;
   --background: #f5f3ef;
-  --foreground: #122033;
-  --ink: #122033;
+  --foreground: #1a1a1a;
+  --ink: #1a1a1a;
   --forest: #1f6b56;
   --line: #e6e2da;
 }
 
 html {
   color-scheme: light;
+  text-align: left;
 }
 
 body {
   color: var(--foreground);
   background: var(--background);
-  font-family: var(--font-sans), system-ui, sans-serif;
-  font-size: 0.9375rem;
-  line-height: 1.5;
+  font-family: var(--font-sans);
+  font-size: 11pt;
+  line-height: 1.2;
   min-height: 100vh;
+  text-align: left;
   -webkit-font-smoothing: antialiased;
 }
 
-h1, h2, h3 {
-  font-family: var(--font-display), Georgia, serif;
-  font-weight: 600;
-  letter-spacing: -0.03em;
+h1 {
+  font-family: var(--font-sans);
+  font-size: 16pt;
+  font-weight: 700;
+  letter-spacing: normal;
+  color: var(--ink);
+  line-height: 1.3;
+  text-align: left;
+}
+
+h2 {
+  font-family: var(--font-sans);
+  font-size: 15pt;
+  font-weight: 700;
+  letter-spacing: normal;
   color: var(--ink);
   line-height: 1.25;
+  text-align: left;
+}
+
+h3 {
+  font-family: var(--font-sans);
+  font-size: 13pt;
+  font-weight: 700;
+  letter-spacing: normal;
+  color: var(--ink);
+  line-height: 1.25;
+  text-align: left;
 }
 
 @layer components {
@@ -38,8 +63,13 @@ h1, h2, h3 {
   }
 }
 
+.font-display {
+  font-family: var(--font-sans);
+  font-weight: 700;
+}
+
 ::selection {
-  background: #122033;
+  background: #1a1a1a;
   color: #f7f6f3;
 }
 
