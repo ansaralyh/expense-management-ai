@@ -1,17 +1,43 @@
 import { apiRequest } from '../lib/api';
 
+export type TaxSlabInfo = {
+  label: string;
+  ratePercent: number;
+  appliesTo: number;
+};
+
+export type ZakatBreakdown = {
+  savingsGoals: number;
+  liquidAssets: number;
+  total: number;
+};
+
 export type TaxEstimate = {
   taxYear: string;
   taxableIncome: number;
-  incomeSource: 'ledger' | 'profile';
+  ytdIncome: number;
+  projectedAnnualIncome: number;
+  incomeSource: 'ledger' | 'profile' | 'rolling12';
+  monthsCounted: number;
   annualTax: number;
   monthlyWithholding: number;
   effectiveRate: number;
+  marginalRate: number;
+  exemptionRemaining: number;
+  activeSlab: TaxSlabInfo;
   slabSource: string;
   zakatBase: number;
   zakatDue: number;
   nisab: number;
+  zakatBreakdown: ZakatBreakdown;
   notes: string[];
+};
+
+export type BehaviorMonth = {
+  month: string;
+  total: number;
+  cluster: number;
+  wantShare: number;
 };
 
 export type BehaviorResult = {
@@ -20,9 +46,11 @@ export type BehaviorResult = {
   profile: string;
   topCategory: string;
   wantShare: number;
+  cluster?: number;
+  clusterCount?: number;
   silhouette: number | null;
   intervention: string;
-  months: { month: string; total: number; cluster: number; wantShare: number }[];
+  months: BehaviorMonth[];
 };
 
 export type StatementLine = { date: string; amount: number; description: string };

@@ -33,7 +33,7 @@ export default function SmartFinBrand({
 
   if (href) {
     return (
-      <Link href={href} onClick={onClick} className={classes}>
+      <Link href={href} scroll={false} onClick={onClick} className={classes}>
         {content}
       </Link>
     );

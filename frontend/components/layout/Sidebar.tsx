@@ -1,20 +1,21 @@
 'use client';
 
+import { useLayoutEffect, useRef } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { 
-  LayoutDashboard, 
-  TrendingUp, 
-  BrainCircuit, 
-  AlertTriangle, 
-  HeartPulse, 
-  Wallet, 
-  Receipt, 
-  PiggyBank, 
-  Target, 
-  Bot, 
-  FileText, 
-  UserCheck, 
+import {
+  LayoutDashboard,
+  TrendingUp,
+  BrainCircuit,
+  AlertTriangle,
+  HeartPulse,
+  Wallet,
+  Receipt,
+  PiggyBank,
+  Target,
+  Bot,
+  FileText,
+  UserCheck,
   ShieldCheck,
   LogOut,
   Upload,
@@ -36,6 +37,21 @@ export default function Sidebar({ isOpen, setIsOpen }: SidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
   const { user, logout } = useAuth();
+  const navScrollRef = useRef<HTMLDivElement>(null);
+  const savedScrollRef = useRef(0);
+
+  useLayoutEffect(() => {
+    if (navScrollRef.current) {
+      navScrollRef.current.scrollTop = savedScrollRef.current;
+    }
+  }, [pathname]);
+
+  const handleNavClick = () => {
+    if (navScrollRef.current) {
+      savedScrollRef.current = navScrollRef.current.scrollTop;
+    }
+    setIsOpen(false);
+  };
 
   const mainNav = [
     { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
@@ -74,9 +90,7 @@ export default function Sidebar({ isOpen, setIsOpen }: SidebarProps) {
 
   const renderNavGroup = (title: string, items: { name: string; href: string; icon: typeof LayoutDashboard }[]) => (
     <div className="space-y-0.5 py-2">
-      <p className="px-3 pb-1.5 typo-overline text-ink-400">
-        {title}
-      </p>
+      <p className="px-3 pb-1.5 typo-overline text-ink-400">{title}</p>
       {items.map((item) => {
         const isActive = pathname === item.href || pathname.startsWith(`${item.href}/`);
         const Icon = item.icon;
@@ -84,7 +98,8 @@ export default function Sidebar({ isOpen, setIsOpen }: SidebarProps) {
           <Link
             key={item.href}
             href={item.href}
-            onClick={() => setIsOpen(false)}
+            scroll={false}
+            onClick={handleNavClick}
             className={`group flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
               isActive
                 ? 'bg-white/10 text-white'
@@ -102,22 +117,28 @@ export default function Sidebar({ isOpen, setIsOpen }: SidebarProps) {
   return (
     <>
       {isOpen && (
-        <div 
-          onClick={() => setIsOpen(false)} 
+        <div
+          onClick={() => setIsOpen(false)}
           className="fixed inset-0 z-40 bg-ink-950/50 lg:hidden"
         />
       )}
 
-      <aside className={`fixed top-0 left-0 z-50 h-screen w-64 bg-ink-900 text-ink-100 border-r border-ink-800 flex flex-col justify-between transition-transform duration-300 ${
-        isOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
-      }`}>
-        <div className="p-5 overflow-y-auto space-y-5 flex-1 custom-scrollbar">
+      <aside
+        className={`fixed top-0 left-0 z-50 h-screen w-64 bg-ink-900 text-ink-100 border-r border-ink-800 flex flex-col justify-between transition-transform duration-300 ${
+          isOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
+        }`}
+      >
+        <div
+          ref={navScrollRef}
+          className="p-5 overflow-y-auto space-y-5 flex-1 custom-scrollbar overscroll-contain"
+          style={{ overflowAnchor: 'none' }}
+        >
           <SmartFinBrand
             href="/dashboard"
             size={36}
             className="px-1 text-white"
             subtitle="Wealth & Planning"
-            onClick={() => setIsOpen(false)}
+            onClick={handleNavClick}
           />
 
           <hr className="border-ink-800" />
@@ -129,7 +150,7 @@ export default function Sidebar({ isOpen, setIsOpen }: SidebarProps) {
           </nav>
         </div>
 
-        <div className="p-4 border-t border-ink-800">
+        <div className="p-4 border-t border-ink-800 shrink-0">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3 min-w-0">
               <div className="w-8 h-8 rounded-full bg-white/10 text-white flex items-center justify-center font-semibold text-xs shrink-0">
