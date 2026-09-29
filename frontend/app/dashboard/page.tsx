@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
+import { usePathname } from 'next/navigation';
 import AppLayout from '../../components/layout/AppLayout';
 import {
   Wallet,
@@ -40,12 +41,12 @@ import { anomalyService } from '../../services/anomaly.service';
 import { ApiError } from '../../lib/api';
 import { AIInsight, Anomaly, FinancialHealthScore, Prediction } from '../../types';
 import { recommendationsService } from '../../services/recommendations.service';
-
-const thisMonth = () => new Date().toISOString().slice(0, 7);
+import { currentMonthKey, LEDGER_CHANGED_EVENT } from '../../lib/ledger-events';
 
 export default function DashboardPage() {
+  const pathname = usePathname();
   const { user } = useAuth();
-  const [selectedMonth, setSelectedMonth] = useState(thisMonth);
+  const [selectedMonth, setSelectedMonth] = useState(currentMonthKey);
   const [summary, setSummary] = useState<SummaryResponse | null>(null);
   const [score, setScore] = useState<FinancialHealthScore | null>(null);
   const [prediction, setPrediction] = useState<Prediction | null>(null);
@@ -82,24 +83,46 @@ export default function DashboardPage() {
     }
   };
 
-  const reloadDashboard = () => {
+  const reloadDashboard = useCallback(() => {
     loadSummary(selectedMonth);
     loadSidecars();
-  };
-
-  useEffect(() => {
-    loadSidecars();
-  }, []);
-
-  useEffect(() => {
-    loadSummary(selectedMonth);
   }, [selectedMonth]);
+
+  useEffect(() => {
+    if (pathname !== '/dashboard') return;
+    loadSidecars();
+  }, [pathname]);
+
+  useEffect(() => {
+    if (pathname !== '/dashboard') return;
+    loadSummary(selectedMonth);
+  }, [selectedMonth, pathname]);
+
+  useEffect(() => {
+    const refresh = () => reloadDashboard();
+    window.addEventListener(LEDGER_CHANGED_EVENT, refresh);
+    return () => window.removeEventListener(LEDGER_CHANGED_EVENT, refresh);
+  }, [reloadDashboard]);
 
   const month = summary?.currentMonth;
   const totalIncome = month?.income || 0;
   const totalExpense = month?.expense || 0;
   const totalSavings = month?.savings || 0;
   const savingsRate = month?.savingsRate ?? 0;
+  const isDeficit = totalSavings < 0;
+  const deficitAmount = Math.abs(totalSavings);
+  const healthIsAtRisk = isDeficit || score?.status === 'At Risk';
+  const displayHealthStatus = isDeficit ? 'At Risk' : score?.status || 'Not scored yet';
+  const healthTooltip = isDeficit
+    ? `Deficit detected: Net savings is negative (Rs. ${deficitAmount.toLocaleString()}). Expenses exceed income this month, which lowers your health score.`
+    : score?.status === 'At Risk'
+      ? score.explanations.find(
+          (item) =>
+            item.toLowerCase().includes('savings') ||
+            item.toLowerCase().includes('spending exceeds') ||
+            item.toLowerCase().includes('income')
+        ) || 'Your financial health score is in the at-risk range. Review spending and budgets.'
+      : '';
   const needsTotal = month?.needsTotal || 0;
   const wantsTotal = month?.wantsTotal || 0;
   const needShare = totalExpense === 0 ? 0 : (needsTotal / totalExpense) * 100;
@@ -134,7 +157,7 @@ export default function DashboardPage() {
               <input
                 type="month"
                 value={selectedMonth}
-                max={thisMonth()}
+                max={currentMonthKey()}
                 onChange={(e) => setSelectedMonth(e.target.value)}
                 className="px-3 py-2.5 rounded-md bg-slate-950 border border-slate-800 text-sm text-slate-100"
               />
@@ -167,6 +190,39 @@ export default function DashboardPage() {
           <p className="text-sm text-slate-400">Loading dashboard…</p>
         ) : (
           <>
+            {isDeficit && (
+              <div className="rounded-xl border-2 border-rose-500 bg-rose-950 px-4 py-4 md:px-5 md:py-5 shadow-sm">
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                  <div className="flex items-start gap-3">
+                    <div className="p-2 rounded-lg bg-white border border-rose-500 shrink-0">
+                      <AlertTriangle className="w-5 h-5 text-rose-500" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-semibold text-rose-500">Monthly deficit detected</p>
+                      <p className="text-sm text-ink-800 mt-1">
+                        Your expenses for {month?.label || 'this month'} exceed your income by{' '}
+                        <span className="font-bold text-rose-500">Rs. {deficitAmount.toLocaleString()}</span>.
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex flex-wrap gap-2 md:shrink-0">
+                    <Link
+                      href="/expenses"
+                      className="px-4 py-2 rounded-lg bg-rose-500 hover:bg-rose-400 text-white text-sm font-semibold transition-colors shadow-sm"
+                    >
+                      Review Expenses
+                    </Link>
+                    <Link
+                      href="/budgets"
+                      className="px-4 py-2 rounded-lg border-2 border-ink-900 bg-white hover:bg-ink-50 text-ink-900 text-sm font-semibold transition-colors"
+                    >
+                      Adjust Budget
+                    </Link>
+                  </div>
+                </div>
+              </div>
+            )}
+
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
               <div className="p-5 rounded-2xl bg-slate-900 border border-slate-800 space-y-3">
                 <div className="flex items-center justify-between">
@@ -203,27 +259,78 @@ export default function DashboardPage() {
                 </div>
               </div>
 
-              <div className="p-5 rounded-2xl bg-slate-900 border border-slate-800 space-y-3">
+              <div
+                className={`p-5 rounded-2xl border-2 space-y-3 ${
+                  isDeficit ? 'border-rose-500 bg-rose-950' : 'border-slate-800 bg-slate-900'
+                }`}
+              >
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-medium text-slate-400">Net savings · {month?.label}</span>
-                  <div className="p-2.5 bg-teal-500/10 rounded-xl text-teal-400 border border-teal-500/20">
+                  <div
+                    className={`p-2.5 rounded-xl border ${
+                      isDeficit
+                        ? 'bg-white text-rose-500 border-rose-500'
+                        : 'bg-teal-500/10 text-teal-400 border-teal-500/20'
+                    }`}
+                  >
                     <PiggyBank className="w-5 h-5" />
                   </div>
                 </div>
                 <div>
-                  <h3 className="text-2xl font-display font-semibold text-slate-100">
-                    Rs. {totalSavings.toLocaleString()}
-                  </h3>
-                  <p className="text-xs text-teal-400 font-medium mt-1">
-                    Savings rate: <strong>{savingsRate}%</strong> (target ≥ 20%)
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h3
+                      className={`text-2xl font-display font-semibold ${
+                        isDeficit ? 'text-rose-500' : 'text-slate-100'
+                      }`}
+                    >
+                      Rs. {totalSavings.toLocaleString()}
+                    </h3>
+                    {isDeficit && (
+                      <span className="inline-flex items-center rounded-full bg-rose-500 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white">
+                        Deficit
+                      </span>
+                    )}
+                  </div>
+                  <p
+                    className={`text-xs font-medium mt-1 ${
+                      isDeficit ? 'text-ink-800' : 'text-teal-400'
+                    }`}
+                  >
+                    {isDeficit ? (
+                      <>
+                        Expenses exceed income by{' '}
+                        <strong className="text-rose-500">Rs. {deficitAmount.toLocaleString()}</strong>
+                        {totalIncome > 0 ? (
+                          <>
+                            {' '}
+                            · Savings rate: <strong className="text-rose-500">{savingsRate}%</strong>
+                          </>
+                        ) : null}
+                      </>
+                    ) : (
+                      <>
+                        Savings rate: <strong>{savingsRate}%</strong> (target ≥ 20%)
+                      </>
+                    )}
                   </p>
                 </div>
               </div>
 
-              <Link href="/financial-health" className="p-5 rounded-2xl bg-slate-900 border border-slate-800 space-y-3 hover:border-slate-700 transition-colors">
+              <Link
+                href="/financial-health"
+                className={`p-5 rounded-2xl bg-slate-900 border-2 space-y-3 hover:border-slate-700 transition-colors ${
+                  healthIsAtRisk ? 'border-rose-500 bg-rose-950' : 'border-slate-800'
+                }`}
+              >
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-medium text-slate-400">Financial health</span>
-                  <div className="p-2.5 bg-rose-500/10 rounded-xl text-rose-500 border border-rose-500/20">
+                  <div
+                    className={`p-2.5 rounded-xl border ${
+                      healthIsAtRisk
+                        ? 'bg-white text-rose-500 border-rose-500'
+                        : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+                    }`}
+                  >
                     <HeartPulse className="w-5 h-5" />
                   </div>
                 </div>
@@ -232,10 +339,28 @@ export default function DashboardPage() {
                     <h3 className="text-2xl font-display font-semibold text-slate-100">{score?.overallScore ?? '—'}</h3>
                     <span className="text-xs text-slate-400">/ 100</span>
                   </div>
-                  <p className="text-xs text-slate-400 font-medium mt-1">{score?.status || 'Not scored yet'}</p>
+                  <div className="group relative mt-1 inline-flex items-center gap-1.5">
+                    <p
+                      className={`text-xs font-semibold ${
+                        healthIsAtRisk ? 'text-rose-500' : 'text-slate-400'
+                      }`}
+                    >
+                      {displayHealthStatus}
+                    </p>
+                    {healthTooltip && (
+                      <>
+                        <Info className="w-3.5 h-3.5 text-rose-500 group-hover:text-rose-400 transition-colors" />
+                        <span className="pointer-events-none absolute left-0 top-full z-20 mt-2 w-64 rounded-lg border border-ink-800 bg-ink-900 px-3 py-2 text-[11px] leading-relaxed text-white opacity-0 shadow-xl transition-opacity group-hover:opacity-100">
+                          {healthTooltip}
+                        </span>
+                      </>
+                    )}
+                  </div>
                   <div className="w-full bg-slate-800 h-2 rounded-full mt-2 overflow-hidden">
                     <div
-                      className="bg-ink-900 h-full rounded-full"
+                      className={`h-full rounded-full ${
+                        healthIsAtRisk ? 'bg-rose-500' : 'bg-emerald-500'
+                      }`}
                       style={{ width: `${Math.min(Math.max(score?.overallScore || 0, 0), 100)}%` }}
                     />
                   </div>

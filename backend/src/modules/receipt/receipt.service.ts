@@ -12,6 +12,11 @@ import {
   unwrapVisionField,
   validateImageInput,
 } from './receipt.validation.js';
+import {
+  detectReceiptFileKind,
+  parseReceiptDocument,
+  validateReceiptFile,
+} from './receipt.document.js';
 import { ExpenseCategory } from '../expense/expense.model.js';
 import { ExtractedField, ReceiptScanResult, VisionReceiptPayload } from './receipt.types.js';
 
@@ -305,6 +310,35 @@ async function parseWithOpenAIVision(base64DataUrl: string): Promise<ReceiptScan
   }
 }
 
+function mapDocumentError(error: unknown): never {
+  const code = error instanceof Error ? error.message : '';
+  if (code === 'TOO_LARGE') {
+    throw new AppError('File is too large. Maximum size is 5MB.', 400);
+  }
+  if (code === 'UNSUPPORTED') {
+    throw new AppError(
+      'Unsupported file type. Use JPG, PNG, WEBP, PDF, CSV, XLSX, or XLS up to 5MB.',
+      400
+    );
+  }
+  if (code === 'NO_ROWS') {
+    throw new AppError(
+      'No expense rows with an amount were found in the spreadsheet or CSV. Check the column headers and try again.',
+      422
+    );
+  }
+  if (code === 'PDF_EMPTY') {
+    throw new AppError(
+      'Could not read text from this PDF. Try a clearer PDF or upload a photo of the receipt instead.',
+      422
+    );
+  }
+  if (code === 'EMPTY') {
+    throw new AppError('Upload a receipt file before scanning.', 400);
+  }
+  throw new AppError('Could not parse this receipt file. Try another format or enter the expense manually.', 422);
+}
+
 export async function parseReceiptData(
   fileBuffer?: Buffer,
   base64Image?: string,
@@ -312,7 +346,7 @@ export async function parseReceiptData(
   mimeType?: string
 ): Promise<ReceiptScanResult> {
   if (!fileBuffer && !base64Image) {
-    throw new AppError('Upload a receipt image before scanning.', 400);
+    throw new AppError('Upload a receipt file before scanning.', 400);
   }
 
   let buffer = fileBuffer;
@@ -324,12 +358,31 @@ export async function parseReceiptData(
     }
   }
 
+  if (!buffer) {
+    throw new AppError('Upload a receipt file before scanning.', 400);
+  }
+
+  let kind;
+  try {
+    kind = validateReceiptFile(buffer, mimeType, fileName);
+  } catch (error) {
+    mapDocumentError(error);
+  }
+
+  if (kind === 'pdf' || kind === 'csv' || kind === 'excel') {
+    try {
+      return await parseReceiptDocument(buffer, kind, fileName);
+    } catch (error) {
+      mapDocumentError(error);
+    }
+  }
+
   validateImageInput(buffer, mimeType, fileName);
 
   const base64Uri =
     base64Image && base64Image.startsWith('data:')
       ? base64Image
-      : buildDataUri(buffer!, fileName, mimeType);
+      : buildDataUri(buffer, fileName, mimeType);
 
   const result = await parseWithOpenAIVision(base64Uri);
 

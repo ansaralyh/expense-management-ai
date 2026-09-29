@@ -25,6 +25,7 @@ import {
   Scale,
 } from 'lucide-react';
 import { getInitials, useAuth } from '../../context/AuthContext';
+import SmartFinBrand from '../brand/SmartFinBrand';
 
 interface SidebarProps {
   isOpen: boolean;
@@ -44,7 +45,6 @@ export default function Sidebar({ isOpen, setIsOpen }: SidebarProps) {
     { name: 'Financial Health', href: '/financial-health', icon: HeartPulse },
     { name: 'Recommendations', href: '/recommendations', icon: Lightbulb },
     { name: 'Tax & Zakat', href: '/tax-planner', icon: FileText },
-    { name: 'Forecast Lab', href: '/forecast-lab', icon: TrendingUp },
     { name: 'Spending Behavior', href: '/behavior', icon: Lightbulb },
     { name: 'Reconcile', href: '/reconcile', icon: Upload },
     { name: 'Life Plan', href: '/life-plan', icon: Scale },
@@ -111,15 +111,13 @@ export default function Sidebar({ isOpen, setIsOpen }: SidebarProps) {
         isOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
       }`}>
         <div className="p-5 overflow-y-auto space-y-5 flex-1 custom-scrollbar">
-          <Link href="/dashboard" className="flex items-center gap-3 px-1">
-            <div className="w-9 h-9 rounded-md bg-white text-ink-900 flex items-center justify-center">
-              <BrainCircuit className="w-5 h-5" />
-            </div>
-            <div>
-              <p className="font-display text-lg font-semibold text-white leading-none">SmartFin</p>
-              <p className="text-xs text-ink-400 mt-0.5">Wealth &amp; Planning</p>
-            </div>
-          </Link>
+          <SmartFinBrand
+            href="/dashboard"
+            size={36}
+            className="px-1 text-white"
+            subtitle="Wealth & Planning"
+            onClick={() => setIsOpen(false)}
+          />
 
           <hr className="border-ink-800" />
 

@@ -7,6 +7,7 @@ import { Income, IncomeType } from '../../types';
 import { Wallet, Plus, Search, Filter, Trash2, Pencil, Repeat } from 'lucide-react';
 import { incomeService } from '../../services/income.service';
 import { ApiError } from '../../lib/api';
+import { notifyLedgerChanged } from '../../lib/ledger-events';
 
 const emptyForm = {
   amount: '',
@@ -103,6 +104,7 @@ export default function IncomePage() {
       setShowModal(false);
       setEditingId(null);
       setFormData(emptyForm);
+      notifyLedgerChanged();
     } catch (err) {
       setFormError(err instanceof Error ? err.message : 'Unable to save income entry.');
     } finally {
@@ -115,6 +117,7 @@ export default function IncomePage() {
     try {
       await incomeService.remove(id);
       setIncomes((prev) => prev.filter((item) => item.id !== id));
+      notifyLedgerChanged();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Unable to delete income entry.');
     }

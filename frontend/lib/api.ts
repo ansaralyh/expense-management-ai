@@ -21,7 +21,7 @@ async function parseJson(response: Response) {
 
 async function browserFetch(path: string, options: RequestInit = {}) {
   try {
-    return await fetch(`${apiBase()}${path}`, options);
+    return await fetch(`${apiBase()}${path}`, { cache: 'no-store', ...options });
   } catch {
     throw new ApiError(
       'Cannot reach the API. Keep the app on http://localhost:3000 and start the backend with `npm run dev` in /backend.',

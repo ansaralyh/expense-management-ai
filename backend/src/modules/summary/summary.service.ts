@@ -84,10 +84,11 @@ export async function getSummary(userId: string, months = 6, month?: string) {
   const keys = monthKeys(months, currentKey);
   const rangeStart = startOfMonth(keys[0]);
   const rangeEnd = startOfNextMonth(currentKey);
+  const ownerId = new mongoose.Types.ObjectId(userId);
 
   const [incomes, expenses] = await Promise.all([
-    Income.find({ userId, date: { $gte: rangeStart, $lt: rangeEnd } }).select('amount date').lean(),
-    Expense.find({ userId, date: { $gte: rangeStart, $lt: rangeEnd } })
+    Income.find({ userId: ownerId, date: { $gte: rangeStart, $lt: rangeEnd } }).select('amount date').lean(),
+    Expense.find({ userId: ownerId, date: { $gte: rangeStart, $lt: rangeEnd } })
       .select('amount date category transactionType')
       .lean(),
   ]);

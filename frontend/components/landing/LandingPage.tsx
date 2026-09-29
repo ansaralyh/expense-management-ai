@@ -28,6 +28,7 @@ import {
   Bar 
 } from 'recharts';
 import { chartTheme, tooltipStyle } from '../../lib/theme';
+import SmartFinBrand from '../brand/SmartFinBrand';
 
 export default function LandingPage() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -124,15 +125,7 @@ export default function LandingPage() {
           : 'bg-transparent py-5'
       }`}>
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-between">
-          <Link href="/" className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-md bg-ink-900 text-white flex items-center justify-center">
-              <BrainCircuit className="w-5 h-5" />
-            </div>
-            <div>
-              <span className="font-display text-lg font-semibold text-slate-100">SmartFin</span>
-              <span className="ml-2 text-xs tracking-[0.14em] uppercase text-slate-400">AI</span>
-            </div>
-          </Link>
+          <SmartFinBrand href="/" size={36} className="text-slate-100" />
 
           <div className="hidden md:flex items-center gap-8 text-sm font-medium text-slate-400">
             <a href="#features" className="hover:text-slate-100 transition-colors">Capabilities</a>
@@ -450,8 +443,8 @@ export default function LandingPage() {
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex flex-col md:flex-row justify-between gap-6">
             <div>
-              <p className="font-display font-semibold text-slate-100">SmartFin AI</p>
-              <p className="text-slate-400 mt-1">Personal finance management and expense prediction.</p>
+              <SmartFinBrand href="/" size={32} className="text-slate-100" />
+              <p className="text-slate-400 mt-3">Personal finance management and expense prediction.</p>
             </div>
             <div className="flex flex-wrap gap-5 text-slate-400">
               <a href="#features" className="hover:text-slate-100">Capabilities</a>

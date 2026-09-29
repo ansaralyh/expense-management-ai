@@ -1,4 +1,14 @@
 import { config } from '../../config/env.js';
+import {
+  ASSISTANT_SYSTEM_KNOWLEDGE,
+  buildConversationalResponse,
+  buildOffTopicResponse,
+  buildOpenFinanceGuidance,
+  isFinanceRelatedQuestion,
+  knowledgeToStructuredResponse,
+  matchKnowledgeQuestion,
+} from './assistant-knowledge.js';
+import { detectConversationalKind } from './intent-parser.js';
 
 export type StructuredAIResponse = {
   title?: string;
@@ -67,21 +77,24 @@ export class FallbackAIProvider implements IAIProvider {
       };
     }
 
-    return {
-      title: 'SmartFin Financial Copilot',
-      summary:
-        `I can answer from your SmartFin records or explain general finance concepts. ` +
-        `For personal data, try "How much did I spend last month?" or "Give me a monthly financial summary." ` +
-        `For education, try "What is an emergency fund?" or "What is a savings rate?"`,
-      evidence: [
-        `Your current month (${context.monthLabel}): Income Rs. ${context.income.toLocaleString()}, Expense Rs. ${context.expense.toLocaleString()}`,
-        `Net Savings: Rs. ${context.savings.toLocaleString()} (${context.savingsRate}% rate)`,
-        `This snapshot is from your personal records — not general financial education.`,
-      ],
-      recommendation:
-        'Ask a specific question about your data, or ask a general "What is…?" finance question.',
-      source: this.name,
-    };
+    const conversational = detectConversationalKind(question);
+    if (conversational) {
+      const firstName = context.userName.split(' ')[0] || 'there';
+      return buildConversationalResponse(conversational, firstName);
+    }
+
+    const knowledge = matchKnowledgeQuestion(question);
+    if (knowledge) {
+      return knowledgeToStructuredResponse(knowledge);
+    }
+
+    if (!isFinanceRelatedQuestion(question)) {
+      const firstName = context.userName.split(' ')[0] || 'there';
+      return buildOffTopicResponse(firstName);
+    }
+
+    const firstName = context.userName.split(' ')[0] || 'there';
+    return buildOpenFinanceGuidance(firstName);
   }
 }
 
@@ -110,20 +123,24 @@ export class OpenAIProvider implements IAIProvider {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 20000);
 
-    const systemPrompt = `You are SmartFin AI Copilot, a senior personal financial advisor.
-Return a JSON object ONLY with the following structure:
+    const systemPrompt = `You are SmartFin AI Copilot — a warm, knowledgeable personal finance assistant.
+
+${ASSISTANT_SYSTEM_KNOWLEDGE}
+
+Return a JSON object ONLY:
 {
   "title": "Short title",
-  "summary": "Direct, accurate 1-2 sentence response to user question",
-  "evidence": ["Point 1 with exact numbers", "Point 2"],
-  "recommendation": "Actionable financial suggestion",
+  "summary": "Direct, helpful 1-3 sentence response",
+  "evidence": ["Point 1", "Point 2"],
+  "recommendation": "Actionable suggestion",
   "action": {"label": "Button text", "href": "/relevant-route"}
 }
 
 CRITICAL RULES:
-- Use ONLY the provided financial context and verified figures. NEVER invent numbers or transactions.
-- Format all currency amounts as Rs. X,XXX.
-- Keep output JSON strictly valid without markdown backticks.`;
+- For personal data questions: use ONLY provided context and verified figures. NEVER invent numbers.
+- For general finance or SmartFin feature questions: use the knowledge above; do not fabricate user balances.
+- Greet naturally; never say you can "only" answer specific question types.
+- Format currency as Rs. X,XXX. Keep JSON valid without markdown backticks.`;
 
     const userPrompt = `Financial Context: ${JSON.stringify(context)}
 ${verifiedAnswer ? `Verified Calculations: ${verifiedAnswer}\n` : ''}
@@ -205,13 +222,16 @@ export class OllamaProvider implements IAIProvider {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 30000);
 
-    const prompt = `You are SmartFin, an AI Personal Finance Copilot.
+    const prompt = `You are SmartFin AI Copilot — friendly, accurate, and helpful.
+
+${ASSISTANT_SYSTEM_KNOWLEDGE}
+
 User Question: "${question}"
-${verifiedAnswer ? `Verified Calculations: ${verifiedAnswer}` : ''}
+${verifiedAnswer ? `Verified Calculations (use these exact figures for personal data): ${verifiedAnswer}` : ''}
 Financial Context JSON: ${JSON.stringify(context)}
 Recent History: ${JSON.stringify(history.slice(-4))}
 
-Answer in 2-4 clear sentences using Rs. for currency. Never fabricate figures.`;
+Answer in 2-4 clear sentences. Use Rs. for currency. Never fabricate user-specific figures. For greetings or general finance, respond naturally without rigid disclaimers.`;
 
     try {
       const response = await fetch(`${baseUrl}/api/generate`, {

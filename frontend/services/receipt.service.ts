@@ -28,7 +28,7 @@ export type ParsedReceipt = {
   confidence: number;
   warnings: string[];
   reviewRequired: boolean;
-  extractionSource: 'openai_vision';
+  extractionSource: 'openai_vision' | 'pdf_text' | 'csv_import' | 'excel_import';
   categoryReason?: string;
   debug?: {
     ocrTextPreview?: string;

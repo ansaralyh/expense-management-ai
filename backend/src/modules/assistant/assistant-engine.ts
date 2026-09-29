@@ -19,6 +19,14 @@ import { Intent, parseIntents } from './intent-parser.js';
 import { runWhatIfAnalysis } from './affordability.service.js';
 import { getStaticEducationResponse } from './financial-education.service.js';
 import {
+  buildConversationalResponse,
+  buildOffTopicResponse,
+  buildOpenFinanceGuidance,
+  isFinanceRelatedQuestion,
+  knowledgeToStructuredResponse,
+  matchKnowledgeQuestion,
+} from './assistant-knowledge.js';
+import {
   formatCategoryDriver,
   formatCategoryExpense,
   formatExpenseChangeWhy,
@@ -80,9 +88,12 @@ export type EngineResult = {
   answer: string;
   confidence: 'high' | 'low';
   intentType?: string;
-  educationTopic?: EducationTopic;
+  educationTopic?: EducationTopic | string;
   isEducation?: boolean;
   isWhatIf?: boolean;
+  isConversational?: boolean;
+  conversationalKind?: 'greeting' | 'thanks' | 'farewell' | 'small_talk' | 'platform_help';
+  structuredOverride?: import('./ai-provider.js').StructuredAIResponse;
 };
 
 function periodToRange(
@@ -109,13 +120,17 @@ async function executeIntent(
   engineCtx: EngineContext,
   refDate: Date
 ): Promise<string> {
-  if (intent.type === 'GREETING') {
+  if (intent.type === 'GREETING' || intent.type === 'CONVERSATIONAL') {
     const firstName = engineCtx.name.split(' ')[0] || 'there';
-    return `Hello ${firstName}. Ask me about your income, expenses, savings, budgets, or a specific month — for example "How much did I spend in August?"`;
+    const kind =
+      intent.type === 'CONVERSATIONAL'
+        ? intent.kind
+        : 'greeting';
+    return buildConversationalResponse(kind, firstName).summary;
   }
 
   if (intent.type === 'HELP') {
-    return `I answer from your live financial records. Try questions like "How much did I spend in August?", "How much salary did I receive last month?", "What did I spend on Food?", or "Compare August and September expenses." For scenarios, try "Can I afford a laptop for Rs. 150,000?" or "What if my salary increases by 20%?" I can also explain general finance topics like "What is an emergency fund?"`;
+    return buildConversationalResponse('platform_help', engineCtx.name.split(' ')[0] || 'there').summary;
   }
 
   if (intent.type === 'WHAT_IF') {
@@ -123,6 +138,10 @@ async function executeIntent(
   }
 
   if (intent.type === 'FINANCIAL_EDUCATION') {
+    const knowledge = matchKnowledgeQuestion(question);
+    if (knowledge) {
+      return knowledgeToStructuredResponse(knowledge).summary;
+    }
     return getStaticEducationResponse(intent.topic as EducationTopic).summary;
   }
 
@@ -326,22 +345,91 @@ export async function runAssistantEngine(
   const convoCtx = buildStructuredContext(history, refDate);
   const intent = parseIntents(question, convoCtx, refDate);
 
-  if (intent.type === 'GENERAL') {
+  if (intent.type === 'CONVERSATIONAL') {
+    const firstName = engineCtx.name.split(' ')[0] || 'there';
+    const structured = buildConversationalResponse(intent.kind, firstName);
     return {
-      answer: '',
-      confidence: 'low',
+      answer: structured.summary,
+      confidence: 'high',
+      intentType: 'CONVERSATIONAL',
+      isConversational: true,
+      conversationalKind: intent.kind,
+      structuredOverride: structured,
+    };
+  }
+
+  if (intent.type === 'GREETING') {
+    const firstName = engineCtx.name.split(' ')[0] || 'there';
+    const structured = buildConversationalResponse('greeting', firstName);
+    return {
+      answer: structured.summary,
+      confidence: 'high',
+      intentType: 'GREETING',
+      isConversational: true,
+      conversationalKind: 'greeting',
+      structuredOverride: structured,
+    };
+  }
+
+  if (intent.type === 'HELP') {
+    const firstName = engineCtx.name.split(' ')[0] || 'there';
+    const structured = buildConversationalResponse('platform_help', firstName);
+    return {
+      answer: structured.summary,
+      confidence: 'high',
+      intentType: 'HELP',
+      isConversational: true,
+      conversationalKind: 'platform_help',
+      structuredOverride: structured,
+    };
+  }
+
+  if (intent.type === 'GENERAL') {
+    const firstName = engineCtx.name.split(' ')[0] || 'there';
+    const knowledge = matchKnowledgeQuestion(question);
+    if (knowledge) {
+      const structured = knowledgeToStructuredResponse(knowledge);
+      return {
+        answer: structured.summary,
+        confidence: 'high',
+        intentType: 'FINANCIAL_EDUCATION',
+        educationTopic: knowledge.topic,
+        isEducation: true,
+        structuredOverride: structured,
+      };
+    }
+
+    if (!isFinanceRelatedQuestion(question)) {
+      const structured = buildOffTopicResponse(firstName);
+      return {
+        answer: structured.summary,
+        confidence: 'high',
+        intentType: 'GENERAL',
+        structuredOverride: structured,
+      };
+    }
+
+    const structured = buildOpenFinanceGuidance(firstName);
+    return {
+      answer: structured.summary,
+      confidence: 'high',
       intentType: 'GENERAL',
+      structuredOverride: structured,
     };
   }
 
   if (intent.type === 'FINANCIAL_EDUCATION') {
-    const education = getStaticEducationResponse(intent.topic as EducationTopic);
+    const knowledge = matchKnowledgeQuestion(question);
+    const education = knowledge
+      ? knowledgeToStructuredResponse(knowledge)
+      : getStaticEducationResponse(intent.topic as EducationTopic);
     return {
       answer: education.summary,
       confidence: 'high',
       intentType: 'FINANCIAL_EDUCATION',
-      educationTopic: intent.topic as EducationTopic,
+      educationTopic: knowledge?.topic || (intent.topic as EducationTopic),
       isEducation: true,
+      structuredOverride: education,
     };
   }
 

@@ -183,7 +183,9 @@ export async function askAssistant(userId: string, input: AskAssistantInput) {
 
   let structuredResponse: StructuredAIResponse;
 
-  if (engineResult.isWhatIf && verifiedAnswer) {
+  if (engineResult.structuredOverride) {
+    structuredResponse = engineResult.structuredOverride;
+  } else if (engineResult.isWhatIf && verifiedAnswer) {
     structuredResponse = buildWhatIfResponse(input.question, verifiedAnswer);
   } else if (engineResult.isEducation && engineResult.educationTopic) {
     structuredResponse = await buildEducationResponse(input.question, engineResult.educationTopic);

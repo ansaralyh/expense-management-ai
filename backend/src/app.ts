@@ -31,7 +31,6 @@ import subscriptionsRoutes from './modules/subscriptions/subscriptions.routes.js
 import receiptRoutes from './modules/receipt/receipt.routes.js';
 import insightsRoutes from './modules/insights/insights.routes.js';
 import taxRoutes from './modules/tax/tax.routes.js';
-import forecastLabRoutes from './modules/forecast-lab/forecast.routes.js';
 import behaviorRoutes from './modules/behavior/behavior.routes.js';
 import reconcileRoutes from './modules/reconcile/reconcile.routes.js';
 import lifePlanRoutes from './modules/life-plan/lifeplan.routes.js';
@@ -43,6 +42,12 @@ import { globalLimiter } from './middleware/rateLimit.js';
 const app: Application = express();
 
 app.set('trust proxy', 1);
+app.set('etag', false);
+
+app.use((_req, res, next) => {
+  res.set('Cache-Control', 'no-store');
+  next();
+});
 
 app.use(
   helmet({
@@ -141,7 +146,6 @@ app.use('/api/subscriptions', subscriptionsRoutes);
 app.use('/api/receipts', receiptRoutes);
 app.use('/api/insights', insightsRoutes);
 app.use('/api/tax-planner', taxRoutes);
-app.use('/api/forecast-lab', forecastLabRoutes);
 app.use('/api/behavior', behaviorRoutes);
 app.use('/api/reconcile', reconcileRoutes);
 app.use('/api/life-plan', lifePlanRoutes);

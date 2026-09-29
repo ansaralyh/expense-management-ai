@@ -109,6 +109,22 @@ describe('assistant intent parser', () => {
     }
   });
 
+  it('detects conversational greeting intent', () => {
+    const intent = parseIntents('hello', {}, refDate);
+    expect(intent.type).toBe('CONVERSATIONAL');
+    if (intent.type === 'CONVERSATIONAL') {
+      expect(intent.kind).toBe('greeting');
+    }
+  });
+
+  it('detects 50/30/20 general finance intent', () => {
+    const intent = parseIntents('Explain the 50/30/20 rule', {}, refDate);
+    expect(intent.type).toBe('FINANCIAL_EDUCATION');
+    if (intent.type === 'FINANCIAL_EDUCATION') {
+      expect(intent.topic).toBe('rule_50_30_20');
+    }
+  });
+
   it('does not treat personal savings question as education', () => {
     const intent = parseIntents('What is my savings rate this month?', {}, refDate);
     expect(intent.type).not.toBe('FINANCIAL_EDUCATION');

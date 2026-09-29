@@ -1,6 +1,7 @@
 import { ParsedPeriod, buildMonthRange, monthKeyFromDate, parsePeriod, shiftMonth } from './date-parser.js';
 import { WhatIfScenario, parseWhatIfScenario } from './affordability.service.js';
 import { detectEducationTopic } from './financial-education.service.js';
+import { matchKnowledgeQuestion } from './assistant-knowledge.js';
 import { matchedCategory } from './financial-query.service.js';
 import {
   ConversationContext,
@@ -9,8 +10,11 @@ import {
   resolveComparisonMonths,
 } from './conversation-context.js';
 
+export type ConversationalKind = 'greeting' | 'thanks' | 'farewell' | 'small_talk' | 'platform_help';
+
 export type IntentType =
   | 'GREETING'
+  | 'CONVERSATIONAL'
   | 'HELP'
   | 'TOTAL_INCOME'
   | 'TOTAL_EXPENSE'
@@ -38,7 +42,14 @@ export type IntentType =
   | 'GENERAL';
 
 export type Intent =
-  | { type: Exclude<IntentType, 'COMPOSITE' | 'CATEGORY_EXPENSE' | 'MONTHLY_COMPARISON' | 'FINANCIAL_EDUCATION' | 'WHAT_IF'>; period?: ParsedPeriod }
+  | {
+      type: Exclude<
+        IntentType,
+        'COMPOSITE' | 'CATEGORY_EXPENSE' | 'MONTHLY_COMPARISON' | 'FINANCIAL_EDUCATION' | 'WHAT_IF' | 'CONVERSATIONAL'
+      >;
+      period?: ParsedPeriod;
+    }
+  | { type: 'CONVERSATIONAL'; kind: ConversationalKind }
   | { type: 'CATEGORY_EXPENSE'; category: string; period?: ParsedPeriod }
   | { type: 'MONTHLY_COMPARISON'; period: ParsedPeriod & { kind: 'compare' } }
   | { type: 'FINANCIAL_EDUCATION'; topic: string }
@@ -50,10 +61,31 @@ function normalize(q: string) {
 }
 
 export function isGreetingOnly(question: string) {
+  return detectConversationalKind(question) === 'greeting';
+}
+
+export function detectConversationalKind(question: string): ConversationalKind | null {
   const q = question.trim().toLowerCase();
-  return /^(hi|hello|hey|yo|salam|assalamu alaikum|good morning|good afternoon|good evening|thanks|thank you|ok|okay|bye)[\s!.,?]*$/i.test(
-    q
-  );
+  if (/^(hi|hello|hey|yo|salam|assalamu alaikum|good morning|good afternoon|good evening)[\s!.,?]*$/i.test(q)) {
+    return 'greeting';
+  }
+  if (/^(thanks|thank you|thx|much appreciated)[\s!.,?]*$/i.test(q)) {
+    return 'thanks';
+  }
+  if (/^(bye|goodbye|see you|good night|goodnight)[\s!.,?]*$/i.test(q)) {
+    return 'farewell';
+  }
+  if (/^(how are you|how're you|how r u|what's up|whats up|how is it going)[\s!.,?]*$/i.test(q)) {
+    return 'small_talk';
+  }
+  if (
+    /\b(what can you do|what do you do|how do i use smartfin|how does smartfin work|help me use|platform help)\b/i.test(
+      q
+    )
+  ) {
+    return 'platform_help';
+  }
+  return null;
 }
 
 function asksSalaryCount(q: string) {
@@ -318,8 +350,9 @@ export function parseIntents(
 ): Intent {
   const q = normalize(question);
 
-  if (isGreetingOnly(question)) {
-    return { type: 'GREETING' };
+  const conversational = detectConversationalKind(question);
+  if (conversational) {
+    return { type: 'CONVERSATIONAL', kind: conversational };
   }
 
   if (/\b(help|what can you|what do you|how do you)\b/.test(q)) {
@@ -329,6 +362,11 @@ export function parseIntents(
   const whatIfScenario = parseWhatIfScenario(question);
   if (whatIfScenario) {
     return { type: 'WHAT_IF', scenario: whatIfScenario };
+  }
+
+  const knowledgeMatch = matchKnowledgeQuestion(question);
+  if (knowledgeMatch) {
+    return { type: 'FINANCIAL_EDUCATION', topic: knowledgeMatch.topic };
   }
 
   const educationTopic = detectEducationTopic(question);

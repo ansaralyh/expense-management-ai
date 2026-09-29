@@ -14,15 +14,6 @@ export type TaxEstimate = {
   notes: string[];
 };
 
-export type ForecastLabResult = {
-  status: string;
-  model: string;
-  monthsUsed: number;
-  r2: number;
-  history: { month: string; total: number }[];
-  bands: { month: string; p10: number; p50: number; p90: number; point: number }[];
-};
-
 export type BehaviorResult = {
   status: string;
   model: string;
@@ -64,9 +55,6 @@ export type LifePlanResult = {
 export const advancedService = {
   tax() {
     return apiRequest<{ status: string; estimate: TaxEstimate }>('/api/tax-planner');
-  },
-  forecast() {
-    return apiRequest<ForecastLabResult>('/api/forecast-lab', { method: 'POST' });
   },
   behavior() {
     return apiRequest<BehaviorResult>('/api/behavior', { method: 'POST' });

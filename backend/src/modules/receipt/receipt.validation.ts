@@ -3,6 +3,7 @@ import { ExtractedField, ReceiptLineItem } from './receipt.types.js';
 
 const SUPPORTED_MIME = new Set(['image/jpeg', 'image/jpg', 'image/png', 'image/webp']);
 const MIN_IMAGE_BYTES = 4_096;
+const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
 
 export function parseMoney(value: unknown): number | null {
   if (value === null || value === undefined || value === '') return null;
@@ -107,13 +108,17 @@ export function validateImageInput(fileBuffer?: Buffer, mimeType?: string, fileN
     throw new AppError('Upload a receipt image before scanning.', 400);
   }
 
+  if (fileBuffer.length > MAX_IMAGE_BYTES) {
+    throw new AppError('File is too large. Maximum size is 5MB.', 400);
+  }
+
   if (fileBuffer.length < MIN_IMAGE_BYTES) {
     throw new AppError('Receipt image is too small or unreadable. Upload a clearer photo.', 400);
   }
 
   const mime = (mimeType || guessMimeFromName(fileName)).toLowerCase();
   if (!SUPPORTED_MIME.has(mime)) {
-    throw new AppError('Unsupported file type. Upload a JPG, PNG, or WEBP receipt image.', 400);
+    throw new AppError('Unsupported image type. Upload JPG, PNG, or WEBP for camera/photo scans.', 400);
   }
 
   if (!hasValidImageSignature(fileBuffer, mime)) {

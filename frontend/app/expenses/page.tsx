@@ -8,6 +8,7 @@ import { Receipt, Plus, Search, Filter, Trash2, Pencil, Repeat, Sparkles, AlertT
 import { expenseService } from '../../services/expense.service';
 import { categorizeService, DuplicateExpense } from '../../services/categorize.service';
 import { ApiError } from '../../lib/api';
+import { notifyLedgerChanged } from '../../lib/ledger-events';
 
 const CATEGORIES: ExpenseCategory[] = [
   'Food',
@@ -181,6 +182,7 @@ export default function ExpensesPage() {
       setEditingId(null);
       setFormData(emptyForm);
       setDuplicates([]);
+      notifyLedgerChanged();
     } catch (err) {
       setFormError(err instanceof ApiError ? err.message : 'Unable to save expense entry.');
     } finally {
@@ -196,6 +198,7 @@ export default function ExpensesPage() {
       await expenseService.remove(deletingItem.id);
       setExpenses((prev) => prev.filter((item) => item.id !== deletingItem.id));
       setDeletingItem(null);
+      notifyLedgerChanged();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Unable to delete expense entry.');
     } finally {

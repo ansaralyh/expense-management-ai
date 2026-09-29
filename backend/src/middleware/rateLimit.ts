@@ -1,14 +1,14 @@
 import rateLimit from 'express-rate-limit';
 import { config } from '../config/env.js';
 
-const skipInTests = () => config.nodeEnv === 'test';
+const skipOutsideProduction = () => config.nodeEnv !== 'production';
 
 export const globalLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 300,
   standardHeaders: true,
   legacyHeaders: false,
-  skip: skipInTests,
+  skip: skipOutsideProduction,
   validate: { xForwardedForHeader: false },
   message: {
     status: 'error',
@@ -21,7 +21,7 @@ export const authLimiter = rateLimit({
   max: 40,
   standardHeaders: true,
   legacyHeaders: false,
-  skip: skipInTests,
+  skip: skipOutsideProduction,
   validate: { xForwardedForHeader: false },
   message: {
     status: 'error',

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { inferReceiptCategory } from '../modules/receipt/receipt.category.js';
+import { detectReceiptFileKind, validateReceiptFile } from '../modules/receipt/receipt.document.js';
 import {
   buildReceiptWarnings,
   extractTotalFromOcrText,
@@ -63,6 +64,25 @@ describe('receipt validation helpers', () => {
         { value: null, confidence: 0 },
       ])
     ).toBe(0.93);
+  });
+});
+
+describe('receipt file types', () => {
+  it('detects supported receipt file kinds', () => {
+    expect(detectReceiptFileKind('application/pdf', 'bill.pdf')).toBe('pdf');
+    expect(detectReceiptFileKind('text/csv', 'receipt.csv')).toBe('csv');
+    expect(
+      detectReceiptFileKind(
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        'receipt.xlsx'
+      )
+    ).toBe('excel');
+    expect(detectReceiptFileKind('image/png', 'photo.png')).toBe('image');
+  });
+
+  it('rejects files larger than 5MB', () => {
+    const large = Buffer.alloc(5 * 1024 * 1024 + 1);
+    expect(() => validateReceiptFile(large, 'application/pdf', 'big.pdf')).toThrow('TOO_LARGE');
   });
 });
 

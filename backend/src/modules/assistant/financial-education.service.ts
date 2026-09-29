@@ -1,4 +1,5 @@
 import { StructuredAIResponse } from './ai-provider.js';
+import { getKnowledgeByTopic, knowledgeToStructuredResponse } from './assistant-knowledge.js';
 
 export type EducationTopic =
   | 'emergency_fund'
@@ -165,8 +166,13 @@ export function detectEducationTopic(question: string): EducationTopic | null {
   return null;
 }
 
-export function getStaticEducationResponse(topic: EducationTopic): StructuredAIResponse {
-  const content = STATIC_ANSWERS[topic] || STATIC_ANSWERS.general;
+export function getStaticEducationResponse(topic: EducationTopic | string): StructuredAIResponse {
+  const knowledgeEntry = getKnowledgeByTopic(topic);
+  if (knowledgeEntry) {
+    return knowledgeToStructuredResponse(knowledgeEntry);
+  }
+
+  const content = STATIC_ANSWERS[topic as EducationTopic] || STATIC_ANSWERS.general;
   return {
     title: content.title,
     summary: content.summary,
@@ -178,23 +184,26 @@ export function getStaticEducationResponse(topic: EducationTopic): StructuredAIR
 
 export async function generateEducationWithLlm(
   question: string,
-  topic: EducationTopic
+  topic: EducationTopic | string
 ): Promise<StructuredAIResponse | null> {
   const apiKey = process.env.AI_API_KEY || process.env.OPENAI_API_KEY || '';
   if (!apiKey.trim()) return null;
 
   const model = process.env.AI_MODEL || process.env.OPENAI_MODEL || 'gpt-3.5-turbo';
-  const staticHint = STATIC_ANSWERS[topic]?.summary || '';
+  const knowledgeEntry = getKnowledgeByTopic(topic);
+  const legacyTopic = topic as EducationTopic;
+  const staticHint =
+    knowledgeEntry?.summary || STATIC_ANSWERS[legacyTopic]?.summary || STATIC_ANSWERS.general.summary;
+  const staticFallback = STATIC_ANSWERS[legacyTopic] || STATIC_ANSWERS.general;
 
   const systemPrompt = `You are SmartFin Financial Education assistant.
-Answer general personal finance education questions clearly in 2-4 sentences.
+Answer general personal finance and SmartFin feature questions clearly in 2-4 sentences.
 Return JSON ONLY:
 {"title":"...","summary":"...","evidence":["..."],"recommendation":"..."}
 
 RULES:
-- Provide GENERAL financial education only.
-- Do NOT invent or assume the user's personal income, expenses, balances, or transactions.
-- Clearly distinguish this as educational content, not the user's SmartFin data.
+- Provide GENERAL financial education only — never invent the user's personal balances or transactions.
+- Be conversational and helpful; do not refuse broad finance questions.
 - Use Rs. when giving numeric examples.
 - Keep JSON valid without markdown.`;
 
@@ -237,12 +246,12 @@ User question: ${question}`;
     };
 
     return {
-      title: parsed.title || STATIC_ANSWERS[topic].title,
-      summary: parsed.summary || STATIC_ANSWERS[topic].summary,
+      title: parsed.title || knowledgeEntry?.title || staticFallback.title,
+      summary: parsed.summary || knowledgeEntry?.summary || staticFallback.summary,
       evidence: Array.isArray(parsed.evidence)
         ? [...parsed.evidence, 'This is general financial education — not your personal SmartFin data.']
         : ['This is general financial education — not your personal SmartFin data.'],
-      recommendation: parsed.recommendation || STATIC_ANSWERS[topic].recommendation,
+      recommendation: parsed.recommendation || knowledgeEntry?.recommendation || staticFallback.recommendation,
       source: `Financial Education (${model})`,
     };
   } catch {
@@ -252,7 +261,7 @@ User question: ${question}`;
   }
 }
 
-export async function buildEducationResponse(question: string, topic: EducationTopic): Promise<StructuredAIResponse> {
+export async function buildEducationResponse(question: string, topic: EducationTopic | string): Promise<StructuredAIResponse> {
   const llm = await generateEducationWithLlm(question, topic);
   if (llm) return llm;
   return getStaticEducationResponse(topic);
