@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { usePathname } from 'next/navigation';
 import AppLayout from '../../components/layout/AppLayout';
 import {
@@ -18,15 +18,18 @@ import {
   AlertTriangle,
   Info,
   Sparkles,
+  BrainCircuit,
 } from 'lucide-react';
 import { fetchAIInsights, AIInsightItem } from '../../services/insights.service';
 import {
   ResponsiveContainer,
-  AreaChart,
+  ComposedChart,
   Area,
+  Line,
   XAxis,
   YAxis,
   Tooltip,
+  Legend,
   PieChart,
   Pie,
   Cell,
@@ -54,6 +57,7 @@ export default function DashboardPage() {
   const [recommendations, setRecommendations] = useState<AIInsight[]>([]);
   const [aiInsights, setAiInsights] = useState<AIInsightItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [trainingForecast, setTrainingForecast] = useState(false);
   const [error, setError] = useState('');
 
   const loadSidecars = async () => {
@@ -133,8 +137,39 @@ export default function DashboardPage() {
   ].filter((item) => item.value > 0);
   const topCategories = month?.byCategory.slice(0, 3) || [];
   const chartData = summary?.monthly || [];
+  const chartRows = useMemo(() => {
+    const rows = chartData.map((row) => ({
+      ...row,
+      forecastExpense: undefined as number | undefined,
+    }));
+    if (prediction) {
+      const shortMonth = prediction.predictionPeriod.replace(/\s+\d{4}$/, '').trim() || 'Next';
+      rows.push({
+        month: `${shortMonth} (est.)`,
+        monthKey: '',
+        income: 0,
+        expense: 0,
+        savings: 0,
+        forecastExpense: prediction.predictedAmount,
+      });
+    }
+    return rows;
+  }, [chartData, prediction]);
   const incomeUp = (month?.incomeChangePercent || 0) >= 0;
   const expenseUp = (month?.expenseChangePercent || 0) >= 0;
+
+  const handleTrainForecast = async () => {
+    setTrainingForecast(true);
+    setError('');
+    try {
+      const res = await predictionService.train();
+      setPrediction(res.prediction);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Unable to train forecast. Is the ML service running on port 8000?');
+    } finally {
+      setTrainingForecast(false);
+    }
+  };
 
   return (
     <AppLayout>
@@ -387,7 +422,7 @@ export default function DashboardPage() {
                     </p>
                   ) : (
                     <ResponsiveContainer width="100%" height="100%">
-                      <AreaChart data={chartData}>
+                      <ComposedChart data={chartRows}>
                         <defs>
                           <linearGradient id="incomeGrad" x1="0" y1="0" x2="0" y2="1">
                             <stop offset="5%" stopColor={chartTheme.sage} stopOpacity={0.4} />
@@ -428,7 +463,20 @@ export default function DashboardPage() {
                           fill="url(#expenseGrad)"
                           name="Expenses"
                         />
-                      </AreaChart>
+                        {prediction && (
+                          <Line
+                            type="monotone"
+                            dataKey="forecastExpense"
+                            stroke="#10B981"
+                            strokeWidth={3}
+                            strokeDasharray="6 4"
+                            dot={{ r: 4, fill: '#10B981' }}
+                            name="Forecast expense"
+                            connectNulls={false}
+                          />
+                        )}
+                        <Legend wrapperStyle={{ fontSize: `${chartTheme.legendFontSize}px` }} />
+                      </ComposedChart>
                     </ResponsiveContainer>
                   )}
                 </div>
@@ -451,12 +499,31 @@ export default function DashboardPage() {
                     </p>
                   </div>
                 </div>
-                <Link
-                  href="/predictions"
-                  className="w-full py-2.5 rounded-md border border-slate-800 hover:bg-slate-950 text-slate-100 font-medium text-sm flex items-center justify-center gap-2 transition-colors"
-                >
-                  Open predictions <ChevronRight className="w-4 h-4" />
-                </Link>
+                <div className="flex flex-col gap-2">
+                  {!prediction && (
+                    <button
+                      type="button"
+                      onClick={() => void handleTrainForecast()}
+                      disabled={trainingForecast}
+                      className="w-full py-2.5 rounded-md bg-ink-900 hover:bg-ink-800 text-white font-medium text-sm flex items-center justify-center gap-2 disabled:opacity-50"
+                    >
+                      <BrainCircuit className={`w-4 h-4 ${trainingForecast ? 'animate-pulse' : ''}`} />
+                      {trainingForecast ? 'Training…' : 'Train forecast'}
+                    </button>
+                  )}
+                  <Link
+                    href="/predictions"
+                    className="w-full py-2.5 rounded-md border border-slate-800 hover:bg-slate-950 text-slate-100 font-medium text-sm flex items-center justify-center gap-2 transition-colors"
+                  >
+                    {prediction ? 'Open predictions' : 'Predictions & models'} <ChevronRight className="w-4 h-4" />
+                  </Link>
+                  <Link
+                    href="/forecast-lab"
+                    className="w-full py-2.5 rounded-md border border-slate-800 hover:bg-slate-950 text-slate-400 font-medium text-xs flex items-center justify-center gap-2 transition-colors"
+                  >
+                    Six-month range (Forecast Lab)
+                  </Link>
+                </div>
               </div>
             </div>
 

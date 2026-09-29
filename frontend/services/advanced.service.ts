@@ -40,6 +40,23 @@ export type ReconcileResult = {
   counts: { matched: number; statementOnly: number; ledgerOnly: number };
 };
 
+export type ForecastBand = {
+  month: string;
+  p10: number;
+  p50: number;
+  p90: number;
+};
+
+export type ForecastLabResult = {
+  status: string;
+  model: string;
+  monthsUsed: number;
+  draws: number;
+  r2: number;
+  history: { month: string; total: number }[];
+  bands: ForecastBand[];
+};
+
 export type LifePlanResult = {
   years: number;
   paths: number;
@@ -58,6 +75,9 @@ export const advancedService = {
   },
   behavior() {
     return apiRequest<BehaviorResult>('/api/behavior', { method: 'POST' });
+  },
+  forecast() {
+    return apiRequest<ForecastLabResult>('/api/forecast-lab', { method: 'POST' });
   },
   reconcile(csv: string) {
     return apiRequest<ReconcileResult>('/api/reconcile', {

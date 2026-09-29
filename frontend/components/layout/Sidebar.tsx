@@ -41,6 +41,7 @@ export default function Sidebar({ isOpen, setIsOpen }: SidebarProps) {
     { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
     { name: 'Analytics', href: '/analytics', icon: TrendingUp },
     { name: 'Predictions', href: '/predictions', icon: BrainCircuit },
+    { name: 'Forecast Lab', href: '/forecast-lab', icon: TrendingUp },
     { name: 'Anomalies', href: '/anomalies', icon: AlertTriangle },
     { name: 'Financial Health', href: '/financial-health', icon: HeartPulse },
     { name: 'Recommendations', href: '/recommendations', icon: Lightbulb },

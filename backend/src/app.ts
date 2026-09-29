@@ -34,6 +34,7 @@ import taxRoutes from './modules/tax/tax.routes.js';
 import behaviorRoutes from './modules/behavior/behavior.routes.js';
 import reconcileRoutes from './modules/reconcile/reconcile.routes.js';
 import lifePlanRoutes from './modules/life-plan/lifeplan.routes.js';
+import forecastLabRoutes from './modules/forecast-lab/forecast.routes.js';
 import { config } from './config/env.js';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler.js';
 import { auditLogger } from './middleware/auditLogger.js';
@@ -149,6 +150,7 @@ app.use('/api/tax-planner', taxRoutes);
 app.use('/api/behavior', behaviorRoutes);
 app.use('/api/reconcile', reconcileRoutes);
 app.use('/api/life-plan', lifePlanRoutes);
+app.use('/api/forecast-lab', forecastLabRoutes);
 
 app.use(notFoundHandler);
 app.use(errorHandler);

@@ -113,6 +113,23 @@ export function callAnomalies(userId: string, expenses: MlExpense[]) {
   return mlRequest<MlAnomalyResponse>('/anomalies', { userId, expenses });
 }
 
+export type ForecastBand = {
+  month: string;
+  p10: number;
+  p50: number;
+  p90: number;
+};
+
+export type ForecastIntervalResponse = {
+  status: string;
+  model: string;
+  monthsUsed: number;
+  draws: number;
+  r2: number;
+  history: { month: string; total: number }[];
+  bands: ForecastBand[];
+};
+
 export type BehaviorResponse = {
   status: string;
   model: string;
@@ -125,6 +142,10 @@ export type BehaviorResponse = {
   intervention: string;
   months: { month: string; total: number; cluster: number; wantShare: number }[];
 };
+
+export function callForecastIntervals(userId: string, expenses: MlExpense[]) {
+  return mlRequest<ForecastIntervalResponse>('/forecast-intervals', { userId, expenses, incomes: [] });
+}
 
 export function callBehavior(userId: string, expenses: MlExpense[]) {
   return mlRequest<BehaviorResponse>('/behavior', { userId, expenses });
