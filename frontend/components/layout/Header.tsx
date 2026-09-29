@@ -36,6 +36,7 @@ export default function Header({ setSidebarOpen }: HeaderProps) {
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchLoading, setSearchLoading] = useState(false);
   const searchRef = useRef<HTMLDivElement>(null);
+  const notificationRef = useRef<HTMLDivElement>(null);
   const { user } = useAuth();
   const unreadCount = notifications.filter((item) => !item.read).length;
 
@@ -84,10 +85,18 @@ export default function Header({ setSidebarOpen }: HeaderProps) {
       if (searchRef.current && !searchRef.current.contains(event.target as Node)) {
         setSearchOpen(false);
       }
+      if (notificationRef.current && !notificationRef.current.contains(event.target as Node)) {
+        setShowNotifications(false);
+      }
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
+
+  const openNotificationsPage = () => {
+    setShowNotifications(false);
+    router.push('/notifications');
+  };
 
   return (
     <header className="sticky top-0 z-30 h-16 bg-slate-900/95 backdrop-blur-sm border-b border-slate-800 px-4 md:px-8 flex items-center justify-between">
@@ -154,8 +163,9 @@ export default function Header({ setSidebarOpen }: HeaderProps) {
           Systems operational
         </div>
 
-        <div className="relative">
+        <div ref={notificationRef} className="relative">
           <button
+            type="button"
             onClick={() => {
               setShowNotifications(!showNotifications);
               if (!showNotifications) void loadNotifications();
@@ -174,9 +184,13 @@ export default function Header({ setSidebarOpen }: HeaderProps) {
             <div className="absolute right-0 mt-2 w-80 sm:w-96 bg-slate-900 border border-slate-800 rounded-xl shadow-lift z-50 p-4 space-y-3">
               <div className="flex items-center justify-between pb-2 border-b border-slate-800">
                 <h4 className="text-sm font-semibold text-slate-100">Notifications</h4>
-                <Link href="/notifications" className="text-xs text-emerald-500 hover:underline">
+                <button
+                  type="button"
+                  onClick={openNotificationsPage}
+                  className="text-xs text-emerald-500 hover:underline"
+                >
                   View all
-                </Link>
+                </button>
               </div>
               <div className="space-y-2 max-h-72 overflow-y-auto custom-scrollbar">
                 {notifications.length === 0 ? (
