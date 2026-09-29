@@ -104,28 +104,26 @@ export default function AnalyticsPage() {
               ) : (
                 <div className="h-72 w-full">
                   <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={categories} barCategoryGap="24%" layout="vertical">
-                      <CartesianGrid stroke={chartTheme.mutedBar} strokeDasharray="3 3" horizontal={false} />
+                    <BarChart data={categories} barCategoryGap="24%">
+                      <CartesianGrid stroke={chartTheme.mutedBar} strokeDasharray="3 3" vertical={false} />
                       <XAxis
-                        type="number"
+                        dataKey="category"
                         stroke={chartTheme.axis}
                         fontSize={chartTheme.tickFontSize}
                         tickLine={false}
-                        tickFormatter={(v) => (v >= 1000 ? `Rs.${v / 1000}k` : `Rs.${v}`)}
                       />
                       <YAxis
-                        type="category"
-                        dataKey="category"
-                        width={90}
                         stroke={chartTheme.axis}
                         fontSize={chartTheme.tickFontSize}
                         tickLine={false}
+                        axisLine={false}
+                        tickFormatter={(v) => (v >= 1000 ? `Rs.${v / 1000}k` : `Rs.${v}`)}
                       />
                       <Tooltip
                         contentStyle={tooltipStyle}
                         formatter={(val: number) => [`Rs. ${Number(val).toLocaleString()}`, 'Amount']}
                       />
-                      <Bar dataKey="amount" fill={chartTheme.copper} radius={[0, 6, 6, 0]} maxBarSize={22} />
+                      <Bar dataKey="amount" fill={chartTheme.copper} radius={[6, 6, 0, 0]} maxBarSize={40} />
                     </BarChart>
                   </ResponsiveContainer>
                 </div>
