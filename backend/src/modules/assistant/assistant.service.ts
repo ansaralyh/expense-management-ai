@@ -59,7 +59,7 @@ function budgetLabel(budget: PublicBudget) {
 async function loadEngineContext(userId: string): Promise<EngineContext> {
   const [profile, summary, budgetResult, goalResult, prediction, health] = await Promise.all([
     getProfile(userId).catch(() => ({ name: 'User' })),
-    getSummary(userId, 6).catch(() => ({
+    getSummary(userId, { months: 6 }).catch(() => ({
       currentMonth: { key: new Date().toISOString().slice(0, 7), label: 'Current Month' },
     })),
     listBudgets(userId, {}).catch(() => ({ budgets: [] })),

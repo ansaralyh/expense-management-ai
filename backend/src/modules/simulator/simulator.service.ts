@@ -14,7 +14,7 @@ export async function runSimulation(userId: string, input: SimulateInput) {
   assertDatabase();
 
   const [summary, currentHealth] = await Promise.all([
-    getSummary(userId, 6),
+    getSummary(userId, { months: 6 }),
     getHealthScore(userId),
   ]);
 

@@ -235,7 +235,7 @@ export async function getEmergencyFundPlan(userId: string): Promise<EmergencyFun
   assertDatabase();
 
   const [summary, goalResult] = await Promise.all([
-    getSummary(userId, 6),
+    getSummary(userId, { months: 6 }),
     listGoals(userId),
   ]);
 
@@ -299,7 +299,7 @@ export async function getHealthScore(userId: string): Promise<PublicHealthScore>
   assertDatabase();
 
   const [summary, budgetResult, goalResult, profile] = await Promise.all([
-    getSummary(userId, 6),
+    getSummary(userId, { months: 6 }),
     listBudgets(userId, {}),
     listGoals(userId),
     getProfile(userId),

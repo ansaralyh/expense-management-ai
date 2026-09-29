@@ -13,7 +13,7 @@ export async function buildSecureFinancialContext(userId: string): Promise<Finan
 
   const [profile, summary, budgetResult, goalResult, health, unresolvedAnomaliesCount, netWorthItems] = await Promise.all([
     getProfile(userId).catch(() => ({ name: 'User' })),
-    getSummary(userId, 6).catch(() => ({
+    getSummary(userId, { months: 6 }).catch(() => ({
       currentMonth: {
         key: new Date().toISOString().slice(0, 7),
         label: 'Current Month',

@@ -24,6 +24,14 @@ export type BudgetVariance = {
   status: 'under' | 'on_track' | 'over';
 };
 
+export type SummaryRange = 'all' | 'last3' | 'last6' | 'thisYear';
+
+export type SummaryGetOptions = {
+  months?: number;
+  month?: string;
+  range?: SummaryRange;
+};
+
 export type SummaryResponse = {
   status: string;
   currentMonth: {
@@ -38,6 +46,8 @@ export type SummaryResponse = {
     incomeChangePercent: number;
     expenseChangePercent: number;
     byCategory: CategoryTotal[];
+    range?: SummaryRange | null;
+    monthCount?: number;
   };
   monthly: MonthlyPoint[];
   byCategory: CategoryTotal[];
@@ -45,9 +55,13 @@ export type SummaryResponse = {
 };
 
 export const summaryService = {
-  get(months = 6, month?: string) {
-    const params = new URLSearchParams({ months: String(months) });
-    if (month) params.set('month', month);
+  get(options: SummaryGetOptions | number = {}, month?: string) {
+    const opts: SummaryGetOptions =
+      typeof options === 'number' ? { months: options, month } : options;
+
+    const params = new URLSearchParams({ months: String(opts.months ?? 6) });
+    if (opts.month) params.set('month', opts.month);
+    if (opts.range) params.set('range', opts.range);
     return apiRequest<SummaryResponse>(`/api/summary?${params.toString()}`);
   },
 };

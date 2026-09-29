@@ -44,12 +44,23 @@ import { anomalyService } from '../../services/anomaly.service';
 import { ApiError } from '../../lib/api';
 import { AIInsight, Anomaly, FinancialHealthScore, Prediction } from '../../types';
 import { recommendationsService } from '../../services/recommendations.service';
-import { currentMonthKey, LEDGER_CHANGED_EVENT } from '../../lib/ledger-events';
+import { LEDGER_CHANGED_EVENT } from '../../lib/ledger-events';
+import {
+  getChartSubtitle,
+  getDeficitBannerTitle,
+  getIncomeSubtext,
+  getPeriodCardTitles,
+  getPeriodOverviewText,
+  parseDashboardPeriod,
+  shouldShowForecastOnChart,
+  type DashboardPeriodValue,
+} from '../../lib/dashboard-period';
+import PeriodFilter from '../../components/dashboard/PeriodFilter';
 
 export default function DashboardPage() {
   const pathname = usePathname();
   const { user } = useAuth();
-  const [selectedMonth, setSelectedMonth] = useState(currentMonthKey);
+  const [selectedPeriod, setSelectedPeriod] = useState<DashboardPeriodValue>('all');
   const [summary, setSummary] = useState<SummaryResponse | null>(null);
   const [score, setScore] = useState<FinancialHealthScore | null>(null);
   const [prediction, setPrediction] = useState<Prediction | null>(null);
@@ -75,11 +86,11 @@ export default function DashboardPage() {
     setAiInsights(insightResult.status === 'fulfilled' ? insightResult.value.insights : []);
   };
 
-  const loadSummary = async (monthKey = selectedMonth) => {
+  const loadSummary = async (period = selectedPeriod) => {
     setError('');
     setLoading(true);
     try {
-      setSummary(await summaryService.get(6, monthKey));
+      setSummary(await summaryService.get({ months: 6, ...parseDashboardPeriod(period) }));
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Unable to load dashboard totals.');
     } finally {
@@ -88,9 +99,9 @@ export default function DashboardPage() {
   };
 
   const reloadDashboard = useCallback(() => {
-    loadSummary(selectedMonth);
+    loadSummary(selectedPeriod);
     loadSidecars();
-  }, [selectedMonth]);
+  }, [selectedPeriod]);
 
   useEffect(() => {
     if (pathname !== '/dashboard') return;
@@ -99,8 +110,8 @@ export default function DashboardPage() {
 
   useEffect(() => {
     if (pathname !== '/dashboard') return;
-    loadSummary(selectedMonth);
-  }, [selectedMonth, pathname]);
+    loadSummary(selectedPeriod);
+  }, [selectedPeriod, pathname]);
 
   useEffect(() => {
     const refresh = () => reloadDashboard();
@@ -109,6 +120,9 @@ export default function DashboardPage() {
   }, [reloadDashboard]);
 
   const month = summary?.currentMonth;
+  const cardTitles = getPeriodCardTitles(month);
+  const periodOverview = getPeriodOverviewText(month);
+  const isSingleMonthView = Boolean(month && !month.range);
   const totalIncome = month?.income || 0;
   const totalExpense = month?.expense || 0;
   const totalSavings = month?.savings || 0;
@@ -117,8 +131,9 @@ export default function DashboardPage() {
   const deficitAmount = Math.abs(totalSavings);
   const healthIsAtRisk = isDeficit || score?.status === 'At Risk';
   const displayHealthStatus = isDeficit ? 'At Risk' : score?.status || 'Not scored yet';
+  const deficitPeriodLabel = month?.label || 'this period';
   const healthTooltip = isDeficit
-    ? `Deficit detected: Net savings is negative (Rs. ${deficitAmount.toLocaleString()}). Expenses exceed income this month, which lowers your health score.`
+    ? `Deficit detected: Net savings is negative (Rs. ${deficitAmount.toLocaleString()}). Expenses exceed income for ${deficitPeriodLabel.toLowerCase()}, which lowers your health score.`
     : score?.status === 'At Risk'
       ? score.explanations.find(
           (item) =>
@@ -137,12 +152,13 @@ export default function DashboardPage() {
   ].filter((item) => item.value > 0);
   const topCategories = month?.byCategory.slice(0, 3) || [];
   const chartData = summary?.monthly || [];
+  const showForecastOnChart = shouldShowForecastOnChart(selectedPeriod);
   const chartRows = useMemo(() => {
     const rows = chartData.map((row) => ({
       ...row,
       forecastExpense: undefined as number | undefined,
     }));
-    if (prediction) {
+    if (prediction && showForecastOnChart) {
       const shortMonth = prediction.predictionPeriod.replace(/\s+\d{4}$/, '').trim() || 'Next';
       rows.push({
         month: `${shortMonth} (est.)`,
@@ -154,9 +170,11 @@ export default function DashboardPage() {
       });
     }
     return rows;
-  }, [chartData, prediction]);
+  }, [chartData, prediction, showForecastOnChart]);
   const incomeUp = (month?.incomeChangePercent || 0) >= 0;
-  const expenseUp = (month?.expenseChangePercent || 0) >= 0;
+  const incomeSubtext = getIncomeSubtext(month, month?.incomeChangePercent || 0, incomeUp);
+  const chartSubtitle = getChartSubtitle(chartData);
+  const deficitBannerTitle = getDeficitBannerTitle(month);
 
   const handleTrainForecast = async () => {
     setTrainingForecast(true);
@@ -180,23 +198,13 @@ export default function DashboardPage() {
             <h1 className="text-2xl md:text-3xl font-display font-semibold text-slate-100">
               Welcome, {user?.name || 'there'}
             </h1>
-            <p className="text-slate-400 text-sm">
-              {month
-                ? `Totals for ${month.label} from your saved income and expenses.`
-                : 'Totals come from the income and expense entries on your account.'}
-            </p>
+            <p className="text-slate-400 text-sm">{periodOverview}</p>
           </div>
           <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-            <label className="flex items-center gap-2">
-              <span className="text-xs text-slate-400 whitespace-nowrap">Month</span>
-              <input
-                type="month"
-                value={selectedMonth}
-                max={currentMonthKey()}
-                onChange={(e) => setSelectedMonth(e.target.value)}
-                className="px-3 py-2.5 rounded-md bg-slate-950 border border-slate-800 text-sm text-slate-100"
-              />
-            </label>
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-slate-400 whitespace-nowrap">Period</span>
+              <PeriodFilter value={selectedPeriod} onChange={setSelectedPeriod} />
+            </div>
             <Link
               href="/income"
               className="px-4 py-2.5 rounded-md bg-ink-900 hover:bg-ink-800 text-white font-medium text-sm flex items-center gap-2 transition-colors"
@@ -233,9 +241,9 @@ export default function DashboardPage() {
                       <AlertTriangle className="w-5 h-5 text-rose-500" />
                     </div>
                     <div>
-                      <p className="text-sm font-semibold text-rose-500">Monthly deficit detected</p>
+                      <p className="text-sm font-semibold text-rose-500">{deficitBannerTitle}</p>
                       <p className="text-sm text-ink-800 mt-1">
-                        Your expenses for {month?.label || 'this month'} exceed your income by{' '}
+                        Your expenses for {deficitPeriodLabel.toLowerCase()} exceed your income by{' '}
                         <span className="font-bold text-rose-500">Rs. {deficitAmount.toLocaleString()}</span>.
                       </p>
                     </div>
@@ -261,7 +269,7 @@ export default function DashboardPage() {
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
               <div className="p-5 rounded-2xl bg-slate-900 border border-slate-800 space-y-3">
                 <div className="flex items-center justify-between">
-                  <span className="text-xs font-medium text-slate-400">Income · {month?.label}</span>
+                  <span className="text-xs font-medium text-slate-400">{cardTitles.income}</span>
                   <div className="p-2.5 bg-emerald-500/10 rounded-xl text-emerald-400 border border-emerald-500/20">
                     <Wallet className="w-5 h-5" />
                   </div>
@@ -270,16 +278,26 @@ export default function DashboardPage() {
                   <h3 className="text-2xl font-display font-semibold text-slate-100">
                     Rs. {totalIncome.toLocaleString()}
                   </h3>
-                  <p className={`text-xs flex items-center gap-1 font-medium mt-1 ${incomeUp ? 'text-emerald-500' : 'text-rose-500'}`}>
-                    {incomeUp ? <ArrowUpRight className="w-3.5 h-3.5" /> : <ArrowDownRight className="w-3.5 h-3.5" />}
-                    {Math.abs(month?.incomeChangePercent || 0)}% vs last month
+                  <p
+                    className={`text-xs flex items-center gap-1 font-medium mt-1 ${
+                      month?.range === 'all' || incomeSubtext?.includes('Recorded')
+                        ? 'text-slate-400'
+                        : incomeUp
+                          ? 'text-emerald-500'
+                          : 'text-rose-500'
+                    }`}
+                  >
+                    {month?.range !== 'all' && !incomeSubtext?.includes('Recorded') ? (
+                      incomeUp ? <ArrowUpRight className="w-3.5 h-3.5" /> : <ArrowDownRight className="w-3.5 h-3.5" />
+                    ) : null}
+                    {incomeSubtext}
                   </p>
                 </div>
               </div>
 
               <div className="p-5 rounded-2xl bg-slate-900 border border-slate-800 space-y-3">
                 <div className="flex items-center justify-between">
-                  <span className="text-xs font-medium text-slate-400">Expenses · {month?.label}</span>
+                  <span className="text-xs font-medium text-slate-400">{cardTitles.expense}</span>
                   <div className="p-2.5 bg-amber-500/10 rounded-xl text-amber-500 border border-amber-500/20">
                     <CreditCard className="w-5 h-5" />
                   </div>
@@ -289,6 +307,9 @@ export default function DashboardPage() {
                     Rs. {totalExpense.toLocaleString()}
                   </h3>
                   <p className="text-xs text-amber-500 font-medium mt-1">
+                    {month?.range === 'all' && month.monthCount
+                      ? `Across ${month.monthCount} month${month.monthCount === 1 ? '' : 's'} · `
+                      : ''}
                     Need vs Want: {needShare.toFixed(0)}% / {wantShare.toFixed(0)}%
                   </p>
                 </div>
@@ -300,7 +321,7 @@ export default function DashboardPage() {
                 }`}
               >
                 <div className="flex items-center justify-between">
-                  <span className="text-xs font-medium text-slate-400">Net savings · {month?.label}</span>
+                  <span className="text-xs font-medium text-slate-400">{cardTitles.savings}</span>
                   <div
                     className={`p-2.5 rounded-xl border ${
                       isDeficit
@@ -342,9 +363,20 @@ export default function DashboardPage() {
                           </>
                         ) : null}
                       </>
+                    ) : month?.range === 'all' ? (
+                      <>
+                        Lifetime savings rate: <strong>{savingsRate}%</strong>
+                        {month.monthCount ? (
+                          <>
+                            {' '}
+                            · {month.monthCount} month{month.monthCount === 1 ? '' : 's'} tracked
+                          </>
+                        ) : null}
+                      </>
                     ) : (
                       <>
-                        Savings rate: <strong>{savingsRate}%</strong> (target ≥ 20%)
+                        Savings rate: <strong>{savingsRate}%</strong>
+                        {isSingleMonthView ? ' (target ≥ 20%)' : ''}
                       </>
                     )}
                   </p>
@@ -409,11 +441,7 @@ export default function DashboardPage() {
                   <h3 className="font-bold text-lg text-slate-100 flex items-center gap-2">
                     <TrendingUp className="w-5 h-5 text-emerald-400" /> Income and expenses
                   </h3>
-                  <p className="text-xs text-slate-400">
-                    {chartData.length > 0
-                      ? `${chartData[0].month}–${chartData[chartData.length - 1].month} from your ledger`
-                      : 'Six months from your ledger'}
-                  </p>
+                  <p className="text-xs text-slate-400">{chartSubtitle}</p>
                 </div>
                 <div className="h-72 w-full pt-4">
                   {chartData.every((row) => row.income === 0 && row.expense === 0) ? (
@@ -463,7 +491,7 @@ export default function DashboardPage() {
                           fill="url(#expenseGrad)"
                           name="Expenses"
                         />
-                        {prediction && (
+                        {prediction && showForecastOnChart && (
                           <Line
                             type="monotone"
                             dataKey="forecastExpense"
@@ -587,7 +615,9 @@ export default function DashboardPage() {
 
                     <div className="flex-1 space-y-3 w-full">
                       {topCategories.length === 0 ? (
-                        <p className="text-sm text-slate-400">No category totals this month.</p>
+                        <p className="text-sm text-slate-400">
+                          No category totals for {isSingleMonthView ? 'this month' : 'this period'}.
+                        </p>
                       ) : (
                         topCategories.map((item) => {
                           const share = Math.round((item.amount / totalExpense) * 100);

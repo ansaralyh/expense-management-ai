@@ -31,7 +31,7 @@ export async function getRecommendations(userId: string) {
   assertDatabase();
 
   const [summary, budgetResult, goalResult, health, prediction, unresolvedCount, profile] = await Promise.all([
-    getSummary(userId, 6),
+    getSummary(userId, { months: 6 }),
     listBudgets(userId, {}),
     listGoals(userId),
     getHealthScore(userId),

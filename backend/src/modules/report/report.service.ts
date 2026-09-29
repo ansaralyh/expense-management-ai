@@ -203,7 +203,7 @@ export async function buildReport(userId: string, month?: string): Promise<Publi
   const [profile, summary, budgetResult, goalResult, prediction, health, incomeResult, expenseResult] =
     await Promise.all([
       getProfile(userId),
-      getSummary(userId, 1, monthKey),
+      getSummary(userId, { months: 1, month: monthKey }),
       listBudgets(userId, { month: monthKey }),
       listGoals(userId),
       isCurrentMonth ? getLatestPrediction(userId) : Promise.resolve(null),

@@ -63,7 +63,7 @@ function toMonthTotals(monthKey: string, summary: Awaited<ReturnType<typeof getS
 export async function getMonthTotals(userId: string, monthKey: string): Promise<MonthTotals> {
   assertDatabase();
   assertUserId(userId);
-  const summary = await getSummary(userId, 1, monthKey);
+  const summary = await getSummary(userId, { months: 1, month: monthKey });
   return toMonthTotals(monthKey, summary);
 }
 

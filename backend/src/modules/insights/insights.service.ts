@@ -42,7 +42,7 @@ export async function generateAIInsights(userId: string): Promise<AIInsightItem[
   assertDatabase();
 
   const [summary, budgetResult, goalResult, subsSummary, unresolvedAnomalies, prediction] = await Promise.all([
-    getSummary(userId, 6).catch(() => null),
+    getSummary(userId, { months: 6 }).catch(() => null),
     listBudgets(userId, {}).catch(() => ({ budgets: [] })),
     listGoals(userId).catch(() => ({ goals: [] })),
     getSubscriptionsAnalysis(userId).catch(() => ({ totalMonthlyCommitments: 0, subscriptions: [], priceIncreaseAlerts: [] })),

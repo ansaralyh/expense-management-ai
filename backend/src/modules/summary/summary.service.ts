@@ -4,6 +4,7 @@ import { isDatabaseConnected } from '../../config/db.js';
 import { Income } from '../income/income.model.js';
 import { Expense } from '../expense/expense.model.js';
 import { listBudgets } from '../budget/budget.service.js';
+import { summaryRangeValues } from './summary.validation.js';
 
 export type CategoryTotal = {
   category: string;
@@ -29,6 +30,14 @@ export type BudgetVariance = {
   status: 'under' | 'on_track' | 'over';
 };
 
+export type SummaryRange = (typeof summaryRangeValues)[number];
+
+export type SummaryOptions = {
+  months?: number;
+  month?: string;
+  range?: SummaryRange;
+};
+
 function assertDatabase() {
   if (!isDatabaseConnected()) {
     throw new AppError('Database is not connected. Try again in a moment.', 503);
@@ -40,6 +49,7 @@ function monthKeyFromDate(value: Date) {
 }
 
 function monthLabel(monthKey: string) {
+  if (monthKey === 'all') return 'All Time';
   const date = new Date(`${monthKey}-01T00:00:00.000Z`);
   return date.toLocaleString('en-US', { month: 'short', timeZone: 'UTC' });
 }
@@ -58,12 +68,30 @@ function monthKeys(count: number, currentKey: string) {
   return keys;
 }
 
-function startOfMonth(monthKey: string) {
-  return new Date(`${monthKey}-01T00:00:00.000Z`);
+function yearMonthKeys(year: string, throughKey: string) {
+  const through = throughKey.startsWith(year) ? throughKey : `${year}-12`;
+  const [, endMonth] = through.split('-').map(Number);
+  const keys: string[] = [];
+  for (let month = 1; month <= endMonth; month += 1) {
+    keys.push(`${year}-${String(month).padStart(2, '0')}`);
+  }
+  return keys;
 }
 
-function startOfNextMonth(monthKey: string) {
-  return startOfMonth(shiftMonth(monthKey, 1));
+function periodLabel(range: SummaryRange | undefined, anchorKey: string, keyCount: number) {
+  if (range === 'all') return 'All Time';
+  if (range === 'last3') return 'Last 3 Months';
+  if (range === 'last6') return 'Last 6 Months';
+  if (range === 'thisYear') return `This Year (${anchorKey.slice(0, 4)})`;
+  return monthLabel(anchorKey);
+}
+
+function periodKey(range: SummaryRange | undefined, anchorKey: string) {
+  if (range === 'all') return 'all';
+  if (range === 'last3') return 'last3';
+  if (range === 'last6') return 'last6';
+  if (range === 'thisYear') return `year-${anchorKey.slice(0, 4)}`;
+  return anchorKey;
 }
 
 function percentChange(current: number, previous: number) {
@@ -73,32 +101,32 @@ function percentChange(current: number, previous: number) {
   return Number((((current - previous) / previous) * 100).toFixed(1));
 }
 
-export async function getSummary(userId: string, months = 6, month?: string) {
+function sumForKeys(map: Record<string, number>, keys: string[]) {
+  return keys.reduce((sum, key) => sum + (map[key] || 0), 0);
+}
+
+export async function getSummary(userId: string, options: SummaryOptions = {}) {
   assertDatabase();
 
   if (!mongoose.Types.ObjectId.isValid(userId)) {
     throw new AppError('User not found.', 404);
   }
 
-  const currentKey = month || monthKeyFromDate(new Date());
-  const keys = monthKeys(months, currentKey);
-  const rangeStart = startOfMonth(keys[0]);
-  const rangeEnd = startOfNextMonth(currentKey);
+  const chartWindow = options.months ?? 6;
+  const anchorKey = options.month || monthKeyFromDate(new Date());
+  const range = options.range;
   const ownerId = new mongoose.Types.ObjectId(userId);
 
   const [incomes, expenses] = await Promise.all([
-    Income.find({ userId: ownerId, date: { $gte: rangeStart, $lt: rangeEnd } }).select('amount date').lean(),
-    Expense.find({ userId: ownerId, date: { $gte: rangeStart, $lt: rangeEnd } })
-      .select('amount date category transactionType')
-      .lean(),
+    Income.find({ userId: ownerId }).select('amount date').lean(),
+    Expense.find({ userId: ownerId }).select('amount date category transactionType').lean(),
   ]);
 
   const incomeByMonth: Record<string, number> = {};
   const expenseByMonth: Record<string, number> = {};
   const needsByMonth: Record<string, number> = {};
   const wantsByMonth: Record<string, number> = {};
-  const categoryAll: Record<string, number> = {};
-  const categoryCurrent: Record<string, number> = {};
+  const categoryByMonth: Record<string, Record<string, number>> = {};
 
   for (const item of incomes) {
     const key = monthKeyFromDate(item.date);
@@ -113,13 +141,35 @@ export async function getSummary(userId: string, months = 6, month?: string) {
     } else {
       wantsByMonth[key] = (wantsByMonth[key] || 0) + item.amount;
     }
-    categoryAll[item.category] = (categoryAll[item.category] || 0) + item.amount;
-    if (key === currentKey) {
-      categoryCurrent[item.category] = (categoryCurrent[item.category] || 0) + item.amount;
-    }
+    if (!categoryByMonth[key]) categoryByMonth[key] = {};
+    categoryByMonth[key][item.category] = (categoryByMonth[key][item.category] || 0) + item.amount;
   }
 
-  const monthly: MonthlyPoint[] = keys.map((key) => {
+  const transactionKeys = [
+    ...new Set([...Object.keys(incomeByMonth), ...Object.keys(expenseByMonth)]),
+  ].sort();
+
+  let periodKeys: string[];
+  let chartKeys: string[];
+
+  if (range === 'all') {
+    periodKeys = transactionKeys;
+    chartKeys = transactionKeys.length > 0 ? transactionKeys : [anchorKey];
+  } else if (range === 'last3') {
+    periodKeys = monthKeys(3, anchorKey);
+    chartKeys = periodKeys;
+  } else if (range === 'last6') {
+    periodKeys = monthKeys(6, anchorKey);
+    chartKeys = periodKeys;
+  } else if (range === 'thisYear') {
+    periodKeys = yearMonthKeys(anchorKey.slice(0, 4), anchorKey);
+    chartKeys = periodKeys;
+  } else {
+    periodKeys = [anchorKey];
+    chartKeys = monthKeys(chartWindow, anchorKey);
+  }
+
+  const monthly: MonthlyPoint[] = chartKeys.map((key) => {
     const income = incomeByMonth[key] || 0;
     const expense = expenseByMonth[key] || 0;
     return {
@@ -131,22 +181,52 @@ export async function getSummary(userId: string, months = 6, month?: string) {
     };
   });
 
-  const previousKey = shiftMonth(currentKey, -1);
-  const currentIncome = incomeByMonth[currentKey] || 0;
-  const currentExpense = expenseByMonth[currentKey] || 0;
-  const previousIncome = incomeByMonth[previousKey] || 0;
-  const previousExpense = expenseByMonth[previousKey] || 0;
-  const currentSavings = currentIncome - currentExpense;
-  const needsTotal = needsByMonth[currentKey] || 0;
-  const wantsTotal = wantsByMonth[currentKey] || 0;
-  const savingsRate = currentIncome === 0 ? 0 : Number(((currentSavings / currentIncome) * 100).toFixed(1));
+  const periodIncome = sumForKeys(incomeByMonth, periodKeys);
+  const periodExpense = sumForKeys(expenseByMonth, periodKeys);
+  const periodSavings = periodIncome - periodExpense;
+  const needsTotal = sumForKeys(needsByMonth, periodKeys);
+  const wantsTotal = sumForKeys(wantsByMonth, periodKeys);
+  const savingsRate =
+    periodIncome === 0 ? 0 : Number(((periodSavings / periodIncome) * 100).toFixed(1));
+
+  const categoryCurrent: Record<string, number> = {};
+  for (const key of periodKeys) {
+    const bucket = categoryByMonth[key] || {};
+    for (const [category, amount] of Object.entries(bucket)) {
+      categoryCurrent[category] = (categoryCurrent[category] || 0) + amount;
+    }
+  }
+
+  const categoryAll: Record<string, number> = {};
+  for (const bucket of Object.values(categoryByMonth)) {
+    for (const [category, amount] of Object.entries(bucket)) {
+      categoryAll[category] = (categoryAll[category] || 0) + amount;
+    }
+  }
+
+  let incomeChangePercent = 0;
+  let expenseChangePercent = 0;
+
+  if (!range && periodKeys.length === 1) {
+    const previousKey = shiftMonth(anchorKey, -1);
+    incomeChangePercent = percentChange(periodIncome, incomeByMonth[previousKey] || 0);
+    expenseChangePercent = percentChange(periodExpense, expenseByMonth[previousKey] || 0);
+  } else if (range === 'last3' || range === 'last6') {
+    const count = range === 'last3' ? 3 : 6;
+    const priorKeys = monthKeys(count, shiftMonth(periodKeys[0], -1));
+    const priorIncome = sumForKeys(incomeByMonth, priorKeys);
+    const priorExpense = sumForKeys(expenseByMonth, priorKeys);
+    incomeChangePercent = percentChange(periodIncome, priorIncome);
+    expenseChangePercent = percentChange(periodExpense, priorExpense);
+  }
 
   const toCategoryList = (map: Record<string, number>): CategoryTotal[] =>
     Object.entries(map)
       .map(([category, amount]) => ({ category, amount }))
       .sort((a, b) => b.amount - a.amount);
 
-  const budgetResult = await listBudgets(userId, { month: currentKey });
+  const budgetMonth = range ? anchorKey : anchorKey;
+  const budgetResult = await listBudgets(userId, { month: budgetMonth });
   const budgetVariance: BudgetVariance[] = budgetResult.budgets.map((budget) => {
     const variance = budget.spent - budget.amount;
     const variancePercent =
@@ -169,17 +249,19 @@ export async function getSummary(userId: string, months = 6, month?: string) {
 
   return {
     currentMonth: {
-      key: currentKey,
-      label: monthLabel(currentKey),
-      income: currentIncome,
-      expense: currentExpense,
-      savings: currentSavings,
+      key: periodKey(range, anchorKey),
+      label: periodLabel(range, anchorKey, periodKeys.length),
+      income: periodIncome,
+      expense: periodExpense,
+      savings: periodSavings,
       savingsRate,
       needsTotal,
       wantsTotal,
-      incomeChangePercent: percentChange(currentIncome, previousIncome),
-      expenseChangePercent: percentChange(currentExpense, previousExpense),
+      incomeChangePercent,
+      expenseChangePercent,
       byCategory: toCategoryList(categoryCurrent),
+      range: range || null,
+      monthCount: periodKeys.length,
     },
     monthly,
     byCategory: toCategoryList(categoryAll),

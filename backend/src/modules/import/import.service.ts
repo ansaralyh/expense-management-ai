@@ -109,7 +109,7 @@ export async function commitImport(userId: string, buffer: Buffer) {
     );
   }
 
-  const summary = await getSummary(userId, 6);
+  const summary = await getSummary(userId, { months: 6 });
   const fileTotals = previewPayload(parsed.incomes, parsed.expenses, []);
 
   return {

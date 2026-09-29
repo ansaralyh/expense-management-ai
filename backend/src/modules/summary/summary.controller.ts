@@ -10,7 +10,11 @@ export const show = asyncHandler(async (req: Request, res: Response) => {
     throw new AppError(parsed.error.issues[0]?.message || 'Invalid filters.', 400);
   }
 
-  const summary = await getSummary(req.user!.id, parsed.data.months, parsed.data.month);
+  const summary = await getSummary(req.user!.id, {
+    months: parsed.data.months,
+    month: parsed.data.month,
+    range: parsed.data.range,
+  });
   res.status(200).json({
     status: 'success',
     ...summary,

@@ -125,7 +125,7 @@ type AffordabilitySnapshot = {
 
 async function loadSnapshot(userId: string): Promise<AffordabilitySnapshot> {
   const [summary, recurring, debts, goals, netWorth, emergency, budgetResult] = await Promise.all([
-    getSummary(userId, 6),
+    getSummary(userId, { months: 6 }),
     listRecurringTemplates(userId),
     listDebts(userId),
     listGoals(userId),
