@@ -7,6 +7,7 @@ import { Save, Download, Trash2, ShieldCheck, Lock, Cpu, Eye, CheckCircle2 } fro
 import { profileService } from '../../../services/profile.service';
 import { ApiError } from '../../../lib/api';
 import { useAuth } from '../../../context/AuthContext';
+import NumericInput from '../../../components/ui/NumericInput';
 
 const GOALS: NonNullable<UserProfile['financialGoal']>[] = [
   'Save Money',
@@ -242,11 +243,11 @@ export default function ProfilePage() {
                   </div>
                   <div>
                     <label className="block text-slate-300 mb-1.5 font-medium text-xs">Age</label>
-                    <input
-                      type="number"
+                    <NumericInput
                       required
+                      integerOnly
                       value={formData.age}
-                      onChange={(e) => setFormData({ ...formData, age: e.target.value })}
+                      onValueChange={(age) => setFormData({ ...formData, age })}
                       className="w-full p-3 rounded-md bg-slate-950 border border-slate-800 text-slate-100 text-sm focus:outline-none focus:border-ink-400"
                     />
                   </div>
@@ -255,19 +256,18 @@ export default function ProfilePage() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-slate-300 mb-1.5 font-medium text-xs">Monthly Income Baseline (Rs.)</label>
-                    <input
-                      type="number"
+                    <NumericInput
                       value={formData.monthlyIncome}
-                      onChange={(e) => setFormData({ ...formData, monthlyIncome: e.target.value })}
+                      onValueChange={(monthlyIncome) => setFormData({ ...formData, monthlyIncome })}
                       className="w-full p-3 rounded-md bg-slate-950 border border-slate-800 text-slate-100 text-sm focus:outline-none focus:border-ink-400"
                     />
                   </div>
                   <div>
                     <label className="block text-slate-300 mb-1.5 font-medium text-xs">Family Size</label>
-                    <input
-                      type="number"
+                    <NumericInput
+                      integerOnly
                       value={formData.familySize}
-                      onChange={(e) => setFormData({ ...formData, familySize: e.target.value })}
+                      onValueChange={(familySize) => setFormData({ ...formData, familySize })}
                       className="w-full p-3 rounded-md bg-slate-950 border border-slate-800 text-slate-100 text-sm focus:outline-none focus:border-ink-400"
                     />
                   </div>

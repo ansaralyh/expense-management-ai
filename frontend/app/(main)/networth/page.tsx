@@ -5,6 +5,7 @@ import { createPortal } from 'react-dom';
 import { NetWorthItem, networthService } from '../../../services/networth.service';
 import { ApiError } from '../../../lib/api';
 import { Scale, Plus, Pencil, Trash2 } from 'lucide-react';
+import NumericInput from '../../../components/ui/NumericInput';
 
 const ASSET_CATEGORIES = ['Cash', 'Savings', 'Investment', 'Property', 'Other'];
 const LIABILITY_CATEGORIES = ['Loan', 'Credit Card', 'Other'];
@@ -247,12 +248,10 @@ export default function NetWorthPage() {
                     </div>
                     <div>
                       <label className="block text-slate-400 mb-1.5 font-medium">Value (Rs.)</label>
-                      <input
-                        type="number"
+                      <NumericInput
                         required
-                        min="0.01"
                         value={formData.value}
-                        onChange={(e) => setFormData({ ...formData, value: e.target.value })}
+                        onValueChange={(value) => setFormData({ ...formData, value })}
                         className="w-full p-2.5 rounded-md bg-slate-950 border border-slate-800 text-slate-100"
                       />
                     </div>

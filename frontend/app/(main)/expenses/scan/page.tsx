@@ -7,6 +7,7 @@ import { uploadReceipt, ParsedReceipt } from '../../../../services/receipt.servi
 import { expenseService } from '../../../../services/expense.service';
 import { ApiError } from '../../../../lib/api';
 import { notifyLedgerChanged } from '../../../../lib/ledger-events';
+import NumericInput from '../../../../components/ui/NumericInput';
 
 const CATEGORIES = [
   'Food',
@@ -483,31 +484,25 @@ export default function ReceiptScanPage() {
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <div>
                     <label className="block font-medium text-slate-300 mb-1.5">Total Amount (Rs.)</label>
-                    <input
-                      type="number"
-                      step="any"
+                    <NumericInput
                       value={form.amount}
-                      onChange={(e) => setForm({ ...form, amount: e.target.value })}
+                      onValueChange={(amount) => setForm({ ...form, amount })}
                       className="w-full p-3 rounded-md border border-slate-800 bg-slate-950 text-slate-100 text-sm focus:outline-none focus:border-emerald-500/50"
                     />
                   </div>
                   <div>
                     <label className="block font-medium text-slate-300 mb-1.5">Subtotal (Rs.)</label>
-                    <input
-                      type="number"
-                      step="any"
+                    <NumericInput
                       value={form.subtotal}
-                      onChange={(e) => setForm({ ...form, subtotal: e.target.value })}
+                      onValueChange={(subtotal) => setForm({ ...form, subtotal })}
                       className="w-full p-3 rounded-md border border-slate-800 bg-slate-950 text-slate-100 text-sm focus:outline-none focus:border-emerald-500/50"
                     />
                   </div>
                   <div>
                     <label className="block font-medium text-slate-300 mb-1.5">Tax (Rs.)</label>
-                    <input
-                      type="number"
-                      step="any"
+                    <NumericInput
                       value={form.tax}
-                      onChange={(e) => setForm({ ...form, tax: e.target.value })}
+                      onValueChange={(tax) => setForm({ ...form, tax })}
                       className="w-full p-3 rounded-md border border-slate-800 bg-slate-950 text-slate-100 text-sm focus:outline-none focus:border-emerald-500/50"
                     />
                   </div>

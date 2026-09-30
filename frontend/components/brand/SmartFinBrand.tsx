@@ -19,17 +19,11 @@ export default function SmartFinBrand({
   const content = (
     <>
       <SmartFinLogo size={size} className="shrink-0" />
-      <div className="min-w-0">
-        <p className="font-display text-sm sm:text-base font-semibold leading-none tracking-wide">
-          <span className="text-inherit">SMARTFIN</span>{' '}
-          <span className="text-[#10B981]">AI</span>
-        </p>
-        {subtitle ? <p className="text-[10px] sm:text-xs text-ink-400 mt-1 truncate">{subtitle}</p> : null}
-      </div>
+      {subtitle ? <p className="text-[10px] sm:text-xs text-ink-400 mt-1 truncate">{subtitle}</p> : null}
     </>
   );
 
-  const classes = `flex items-center gap-2.5 min-w-0 ${className}`;
+  const classes = `flex flex-col items-start gap-0 min-w-0 ${className}`;
 
   if (href) {
     return (

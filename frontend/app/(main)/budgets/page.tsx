@@ -8,6 +8,7 @@ import { budgetService } from '../../../services/budget.service';
 import { summaryService, BudgetVariance } from '../../../services/summary.service';
 import { ApiError } from '../../../lib/api';
 import { BarChart3 } from 'lucide-react';
+import NumericInput from '../../../components/ui/NumericInput';
 
 const CATEGORIES: ExpenseCategory[] = [
   'Food',
@@ -345,13 +346,10 @@ export default function BudgetsPage() {
                   </div>
                   <div>
                     <label className="block text-slate-400 mb-1.5 font-medium">Limit (Rs.)</label>
-                    <input
-                      type="number"
+                    <NumericInput
                       required
-                      min="0.01"
-                      step="0.01"
                       value={formData.amount}
-                      onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
+                      onValueChange={(amount) => setFormData({ ...formData, amount })}
                       placeholder="75000"
                       className="w-full p-2.5 rounded-md bg-slate-950 border border-slate-800 text-slate-100"
                     />

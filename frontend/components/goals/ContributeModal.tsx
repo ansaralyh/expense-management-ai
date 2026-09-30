@@ -5,6 +5,7 @@ import { createPortal } from 'react-dom';
 import { ContributionSource, SavingsGoal } from '../../types';
 import { goalService } from '../../services/goal.service';
 import { ApiError } from '../../lib/api';
+import NumericInput from '../ui/NumericInput';
 
 const SOURCES: { value: ContributionSource; label: string }[] = [
   { value: 'SALARY', label: 'Monthly Salary / Income' },
@@ -74,13 +75,10 @@ export default function ContributeModal({ goal, onClose, onSaved }: ContributeMo
           )}
           <div>
             <label className="block text-slate-400 mb-1.5 font-medium">Amount to deposit (Rs.)</label>
-            <input
-              type="number"
+            <NumericInput
               required
-              min="0.01"
-              step="0.01"
               value={amount}
-              onChange={(e) => setAmount(e.target.value)}
+              onValueChange={setAmount}
               placeholder="10000"
               className="w-full p-2.5 rounded-md bg-slate-950 border border-slate-800 text-slate-100"
             />

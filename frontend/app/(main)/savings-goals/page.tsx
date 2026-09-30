@@ -7,6 +7,7 @@ import { Target, Plus, Pencil, Trash2, Calendar, Wallet } from 'lucide-react';
 import { goalService } from '../../../services/goal.service';
 import { ApiError } from '../../../lib/api';
 import ContributeModal from '../../../components/goals/ContributeModal';
+import NumericInput from '../../../components/ui/NumericInput';
 
 const PRIORITIES: SavingsGoal['priority'][] = ['LOW', 'MEDIUM', 'HIGH'];
 
@@ -309,25 +310,19 @@ export default function SavingsGoalsPage() {
                   <div className="grid grid-cols-2 gap-3">
                     <div>
                       <label className="block text-slate-400 mb-1.5 font-medium">Target (Rs.)</label>
-                      <input
-                        type="number"
+                      <NumericInput
                         required
-                        min="0.01"
-                        step="0.01"
                         value={formData.targetAmount}
-                        onChange={(e) => setFormData({ ...formData, targetAmount: e.target.value })}
+                        onValueChange={(targetAmount) => setFormData({ ...formData, targetAmount })}
                         placeholder="400000"
                         className="w-full p-2.5 rounded-md bg-slate-950 border border-slate-800 text-slate-100"
                       />
                     </div>
                     <div>
                       <label className="block text-slate-400 mb-1.5 font-medium">Saved so far (Rs.)</label>
-                      <input
-                        type="number"
-                        min="0"
-                        step="0.01"
+                      <NumericInput
                         value={formData.currentAmount}
-                        onChange={(e) => setFormData({ ...formData, currentAmount: e.target.value })}
+                        onValueChange={(currentAmount) => setFormData({ ...formData, currentAmount })}
                         placeholder="0"
                         className="w-full p-2.5 rounded-md bg-slate-950 border border-slate-800 text-slate-100"
                       />

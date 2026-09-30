@@ -8,6 +8,7 @@ import { expenseService } from '../../../services/expense.service';
 import { categorizeService, DuplicateExpense } from '../../../services/categorize.service';
 import { ApiError } from '../../../lib/api';
 import { notifyLedgerChanged } from '../../../lib/ledger-events';
+import NumericInput from '../../../components/ui/NumericInput';
 
 const CATEGORIES: ExpenseCategory[] = [
   'Food',
@@ -436,13 +437,10 @@ export default function ExpensesPage() {
                   <div className="grid grid-cols-2 gap-3">
                     <div>
                       <label className="block text-slate-400 mb-1.5 font-medium">Amount (Rs.)</label>
-                      <input
-                        type="number"
+                      <NumericInput
                         required
-                        min="0.01"
-                        step="0.01"
                         value={formData.amount}
-                        onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
+                        onValueChange={(amount) => setFormData({ ...formData, amount })}
                         placeholder="14500"
                         className="w-full p-2.5 rounded-md bg-slate-950 border border-slate-800 text-slate-100 focus:outline-none focus:border-ink-400"
                       />

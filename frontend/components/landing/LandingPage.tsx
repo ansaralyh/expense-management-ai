@@ -125,7 +125,7 @@ export default function LandingPage() {
           : 'bg-transparent py-5'
       }`}>
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-between">
-          <SmartFinBrand href="/" size={36} className="text-slate-100" />
+          <SmartFinBrand href="/" size={38} />
 
           <div className="hidden md:flex items-center gap-8 text-sm font-medium text-slate-400">
             <a href="#features" className="hover:text-slate-100 transition-colors">Capabilities</a>
@@ -443,7 +443,7 @@ export default function LandingPage() {
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex flex-col md:flex-row justify-between gap-6">
             <div>
-              <SmartFinBrand href="/" size={32} className="text-slate-100" />
+              <SmartFinBrand href="/" size={32} />
               <p className="text-slate-400 mt-3">Personal finance management and expense prediction.</p>
             </div>
             <div className="flex flex-wrap gap-5 text-slate-400">

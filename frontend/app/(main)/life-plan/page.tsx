@@ -23,11 +23,13 @@ import {
 import { advancedService, LifePlanResult } from '../../../services/advanced.service';
 import { ApiError } from '../../../lib/api';
 import { chartTheme, tooltipStyle } from '../../../lib/theme';
+import NumericInput from '../../../components/ui/NumericInput';
+import { parseNumericInput } from '../../../lib/numeric-input';
 
 export default function LifePlanPage() {
-  const [years, setYears] = useState(5);
-  const [growth, setGrowth] = useState(5);
-  const [inflation, setInflation] = useState(8);
+  const [years, setYears] = useState('5');
+  const [growth, setGrowth] = useState('5');
+  const [inflation, setInflation] = useState('8');
   const [plan, setPlan] = useState<LifePlanResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -36,7 +38,11 @@ export default function LifePlanPage() {
     setError('');
     setLoading(true);
     try {
-      const result = await advancedService.lifePlan(years, growth, inflation);
+      const result = await advancedService.lifePlan(
+        parseNumericInput(years, 5),
+        parseNumericInput(growth, 0),
+        parseNumericInput(inflation, 0)
+      );
       setPlan(result.plan);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Unable to run the life plan.');
@@ -73,34 +79,26 @@ export default function LifePlanPage() {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
           <label className="space-y-1.5 text-slate-400">
             Years
-            <input
-              type="number"
-              min={1}
-              max={10}
+            <NumericInput
+              integerOnly
               value={years}
-              onChange={(event) => setYears(Number(event.target.value))}
+              onValueChange={setYears}
               className="w-full p-2.5 rounded-md bg-slate-950 border border-slate-800 text-slate-100"
             />
           </label>
           <label className="space-y-1.5 text-slate-400">
             Income growth % / year
-            <input
-              type="number"
-              min={-20}
-              max={30}
+            <NumericInput
               value={growth}
-              onChange={(event) => setGrowth(Number(event.target.value))}
+              onValueChange={setGrowth}
               className="w-full p-2.5 rounded-md bg-slate-950 border border-slate-800 text-slate-100"
             />
           </label>
           <label className="space-y-1.5 text-slate-400">
             Inflation % / year
-            <input
-              type="number"
-              min={0}
-              max={25}
+            <NumericInput
               value={inflation}
-              onChange={(event) => setInflation(Number(event.target.value))}
+              onValueChange={setInflation}
               className="w-full p-2.5 rounded-md bg-slate-950 border border-slate-800 text-slate-100"
             />
           </label>

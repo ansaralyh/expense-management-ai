@@ -5,6 +5,7 @@ import { createPortal } from 'react-dom';
 import { Debt, debtService } from '../../../services/debt.service';
 import { ApiError } from '../../../lib/api';
 import { CreditCard, Plus, Pencil, Trash2 } from 'lucide-react';
+import NumericInput from '../../../components/ui/NumericInput';
 
 const emptyForm = {
   name: '',
@@ -231,24 +232,18 @@ export default function DebtsPage() {
                   <div className="grid grid-cols-2 gap-3">
                     <div>
                       <label className="block text-slate-400 mb-1.5 font-medium">Principal (Rs.)</label>
-                      <input
-                        type="number"
+                      <NumericInput
                         required
-                        min="0.01"
                         value={formData.principal}
-                        onChange={(e) => setFormData({ ...formData, principal: e.target.value })}
+                        onValueChange={(principal) => setFormData({ ...formData, principal })}
                         className="w-full p-2.5 rounded-md bg-slate-950 border border-slate-800 text-slate-100"
                       />
                     </div>
                     <div>
                       <label className="block text-slate-400 mb-1.5 font-medium">Interest rate (%)</label>
-                      <input
-                        type="number"
-                        min="0"
-                        max="100"
-                        step="0.01"
+                      <NumericInput
                         value={formData.interestRate}
-                        onChange={(e) => setFormData({ ...formData, interestRate: e.target.value })}
+                        onValueChange={(interestRate) => setFormData({ ...formData, interestRate })}
                         className="w-full p-2.5 rounded-md bg-slate-950 border border-slate-800 text-slate-100"
                       />
                     </div>
@@ -256,22 +251,20 @@ export default function DebtsPage() {
                   <div className="grid grid-cols-2 gap-3">
                     <div>
                       <label className="block text-slate-400 mb-1.5 font-medium">Tenure (months)</label>
-                      <input
-                        type="number"
+                      <NumericInput
                         required
-                        min="1"
+                        integerOnly
                         value={formData.tenureMonths}
-                        onChange={(e) => setFormData({ ...formData, tenureMonths: e.target.value })}
+                        onValueChange={(tenureMonths) => setFormData({ ...formData, tenureMonths })}
                         className="w-full p-2.5 rounded-md bg-slate-950 border border-slate-800 text-slate-100"
                       />
                     </div>
                     <div>
                       <label className="block text-slate-400 mb-1.5 font-medium">Paid months</label>
-                      <input
-                        type="number"
-                        min="0"
+                      <NumericInput
+                        integerOnly
                         value={formData.paidMonths}
-                        onChange={(e) => setFormData({ ...formData, paidMonths: e.target.value })}
+                        onValueChange={(paidMonths) => setFormData({ ...formData, paidMonths })}
                         className="w-full p-2.5 rounded-md bg-slate-950 border border-slate-800 text-slate-100"
                       />
                     </div>
