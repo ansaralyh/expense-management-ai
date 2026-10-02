@@ -136,7 +136,7 @@ export default function Sidebar({ isOpen, setIsOpen }: SidebarProps) {
           <SmartFinBrand
             href="/dashboard"
             size={34}
-            className="px-1"
+            className="bg-transparent border-0 shadow-none p-0"
             subtitle="Wealth & Planning"
             onClick={handleNavClick}
           />
