@@ -39,6 +39,7 @@ export interface IExpense extends Document {
   description: string;
   transactionType: TransactionType;
   recurring: boolean;
+  importMetadata?: Record<string, unknown>;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -89,6 +90,9 @@ const expenseSchema = new Schema<IExpense>(
     recurring: {
       type: Boolean,
       default: false,
+    },
+    importMetadata: {
+      type: Schema.Types.Mixed,
     },
   },
   { timestamps: true }

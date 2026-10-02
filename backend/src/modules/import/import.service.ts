@@ -3,6 +3,8 @@ import { isDatabaseConnected } from '../../config/db.js';
 import { Income } from '../income/income.model.js';
 import { Expense } from '../expense/expense.model.js';
 import { getSummary } from '../summary/summary.service.js';
+import { INCOME_TYPES } from '../income/income.model.js';
+import { EXPENSE_CATEGORIES, PAYMENT_METHODS, TRANSACTION_TYPES } from '../expense/expense.model.js';
 import {
   buildExpensesCsvTemplate,
   buildImportTemplateBuffer,
@@ -11,6 +13,7 @@ import {
   ParsedExpenseRow,
   ParsedIncomeRow,
 } from './import.utils.js';
+import { ImportCommitJsonInput } from './import.validation.js';
 
 const MAX_ROWS = 1000;
 
@@ -64,6 +67,84 @@ export function previewImport(buffer: Buffer) {
     throw new AppError(`Import is limited to ${MAX_ROWS} rows per sheet.`, 400);
   }
   return previewPayload(parsed.incomes, parsed.expenses, parsed.errors);
+}
+
+function matchEnumValue<T extends readonly string[]>(value: string | undefined, allowed: T, fallback: T[number]): T[number] {
+  const text = String(value ?? '').trim();
+  if (!text) return fallback;
+  const exact = allowed.find((item) => item.toLowerCase() === text.toLowerCase());
+  if (exact) return exact;
+  const partial = allowed.find((item) => text.toLowerCase().includes(item.toLowerCase()));
+  return partial ?? fallback;
+}
+
+function normalizeTransactionType(value?: string) {
+  const text = String(value ?? '').trim().toUpperCase();
+  if (text === 'WANT') return 'WANT' as const;
+  if (text === 'NEED') return 'NEED' as const;
+  return matchEnumValue(value, TRANSACTION_TYPES, 'NEED');
+}
+
+export async function commitImportJson(userId: string, payload: ImportCommitJsonInput) {
+  assertDatabase();
+
+  const incomes = payload.incomes ?? [];
+  const expenses = payload.expenses ?? [];
+
+  if (incomes.length + expenses.length === 0) {
+    throw new AppError('No valid income or expense rows were found in the import payload.', 400);
+  }
+  if (incomes.length + expenses.length > MAX_ROWS * 2) {
+    throw new AppError(`Import is limited to ${MAX_ROWS} rows per sheet.`, 400);
+  }
+
+  if (incomes.length > 0) {
+    await Income.insertMany(
+      incomes.map((row) => ({
+        userId,
+        amount: row.amount,
+        source: row.source,
+        date: new Date(`${row.date}T00:00:00.000Z`),
+        incomeType: matchEnumValue(row.incomeType, INCOME_TYPES, 'Other'),
+        description: row.description,
+        recurring: row.recurring ?? false,
+        importMetadata: row.extraFields,
+      }))
+    );
+  }
+
+  if (expenses.length > 0) {
+    await Expense.insertMany(
+      expenses.map((row) => ({
+        userId,
+        amount: row.amount,
+        description: row.description,
+        category: matchEnumValue(row.category, EXPENSE_CATEGORIES, 'Other'),
+        subcategory: row.subcategory,
+        date: new Date(`${row.date}T00:00:00.000Z`),
+        paymentMethod: matchEnumValue(row.paymentMethod, PAYMENT_METHODS, 'Other'),
+        transactionType: normalizeTransactionType(row.transactionType),
+        recurring: row.recurring ?? false,
+        importMetadata: row.extraFields,
+      }))
+    );
+  }
+
+  const summary = await getSummary(userId, { months: 6 });
+  const incomeTotal = sumAmount(incomes);
+  const expenseTotal = sumAmount(expenses);
+
+  return {
+    imported: {
+      incomeCount: incomes.length,
+      expenseCount: expenses.length,
+      incomeTotal,
+      expenseTotal,
+      netFromFile: incomeTotal - expenseTotal,
+    },
+    currentMonth: summary.currentMonth,
+    monthly: summary.monthly,
+  };
 }
 
 export async function commitImport(userId: string, buffer: Buffer) {

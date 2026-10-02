@@ -2,21 +2,43 @@ import * as XLSX from 'xlsx';
 
 const MAX_FILE_BYTES = 5 * 1024 * 1024;
 
-const INCOME_REQUIRED = [
-  { key: 'amount', aliases: ['amount', 'income', 'value'] },
-  { key: 'source', aliases: ['source', 'incomesource', 'from'] },
-  { key: 'date', aliases: ['date', 'transactiondate', 'incomedate'] },
-  { key: 'incomeType', aliases: ['incometype', 'type', 'category'] },
-] as const;
+const INCOME_TYPE_HINTS = ['salary', 'freelance', 'business', 'investment', 'gift', 'other'];
+const EXPENSE_CATEGORY_HINTS = [
+  'food',
+  'transport',
+  'rent',
+  'bills',
+  'education',
+  'healthcare',
+  'shopping',
+  'entertainment',
+  'travel',
+  'utilities',
+  'other',
+];
 
-const EXPENSE_REQUIRED = [
-  { key: 'amount', aliases: ['amount', 'expense', 'value', 'cost'] },
-  { key: 'description', aliases: ['description', 'details', 'note', 'notes'] },
-  { key: 'category', aliases: ['category', 'expensecategory'] },
-  { key: 'date', aliases: ['date', 'transactiondate', 'expensedate'] },
-  { key: 'paymentMethod', aliases: ['paymentmethod', 'payment', 'method'] },
-  { key: 'transactionType', aliases: ['transactiontype', 'needwant', 'needorwant', 'type'] },
-] as const;
+export type ImportCommitPayload = {
+  incomes: Array<{
+    amount: number;
+    source: string;
+    date: string;
+    incomeType?: string;
+    description?: string;
+    recurring?: boolean;
+    extraFields?: Record<string, string>;
+  }>;
+  expenses: Array<{
+    amount: number;
+    description: string;
+    date: string;
+    category?: string;
+    subcategory?: string;
+    paymentMethod?: string;
+    transactionType?: string;
+    recurring?: boolean;
+    extraFields?: Record<string, string>;
+  }>;
+};
 
 export type LocalImportRow = {
   row: number;
@@ -27,12 +49,15 @@ export type LocalImportRow = {
   type: string;
   label: string;
   detail?: string;
+  extraFields: Record<string, string>;
 };
 
 export type LocalImportPreview = {
   fileName: string;
   sheetKind: 'income' | 'expense' | 'mixed' | 'unknown';
   rows: LocalImportRow[];
+  extraColumns: string[];
+  payload: ImportCommitPayload;
   incomeCount: number;
   expenseCount: number;
   incomeTotal: number;
@@ -49,15 +74,6 @@ function normalizeHeader(value: unknown) {
     .trim()
     .toLowerCase()
     .replace(/[\s_-]+/g, '');
-}
-
-function headerIndex(headers: string[], aliases: readonly string[]) {
-  const normalized = headers.map(normalizeHeader);
-  for (const alias of aliases) {
-    const index = normalized.indexOf(normalizeHeader(alias));
-    if (index >= 0) return index;
-  }
-  return -1;
 }
 
 function parseAmount(value: unknown): number | null {
@@ -92,25 +108,12 @@ function parseDateValue(value: unknown): string {
   return text;
 }
 
-function detectSheetKind(headers: string[]): 'income' | 'expense' | 'unknown' {
-  const normalized = headers.map(normalizeHeader);
-  const has = (aliases: readonly string[]) =>
-    aliases.some((alias) => normalized.includes(normalizeHeader(alias)));
-
-  if (has(['incometype', 'income type'])) return 'income';
-  if (has(['category', 'paymentmethod', 'payment method', 'transactiontype', 'transaction type'])) {
-    return 'expense';
-  }
-  if (has(['source']) && !has(['category'])) return 'income';
-  if (has(['description']) && has(['category'])) return 'expense';
-  return 'unknown';
-}
-
-function missingRequiredHeaders(headers: string[], kind: 'income' | 'expense') {
-  const required = kind === 'income' ? INCOME_REQUIRED : EXPENSE_REQUIRED;
-  return required
-    .filter((field) => headerIndex(headers, field.aliases) < 0)
-    .map((field) => field.key);
+function parseBoolean(value: unknown) {
+  if (typeof value === 'boolean') return value;
+  const text = String(value ?? '')
+    .trim()
+    .toLowerCase();
+  return text === 'true' || text === 'yes' || text === 'y' || text === '1';
 }
 
 function sheetRows(sheet: XLSX.WorkSheet) {
@@ -121,68 +124,200 @@ function sheetRows(sheet: XLSX.WorkSheet) {
   }) as unknown[][];
 }
 
-function parseIncomeRows(sheetName: string, rows: unknown[][]): LocalImportRow[] {
-  if (rows.length === 0) return [];
-  const headers = rows[0].map((cell) => String(cell ?? ''));
-  const amountIdx = headerIndex(headers, INCOME_REQUIRED[0].aliases);
-  const sourceIdx = headerIndex(headers, INCOME_REQUIRED[1].aliases);
-  const dateIdx = headerIndex(headers, INCOME_REQUIRED[2].aliases);
-  const typeIdx = headerIndex(headers, INCOME_REQUIRED[3].aliases);
+function recordFromRow(headers: string[], row: unknown[]) {
+  const record: Record<string, string> = {};
+  headers.forEach((header, index) => {
+    const key = String(header ?? '').trim();
+    if (!key) return;
+    record[key] = String(row[index] ?? '').trim();
+  });
+  return record;
+}
 
-  const parsed: LocalImportRow[] = [];
-  for (let i = 1; i < rows.length; i += 1) {
-    const row = rows[i];
-    if (!row || row.every((cell) => String(cell ?? '').trim() === '')) continue;
-    parsed.push({
-      row: i + 1,
-      sheet: sheetName,
-      kind: 'income',
-      date: parseDateValue(row[dateIdx]),
-      amount: parseAmount(row[amountIdx]),
-      type: String(row[typeIdx] ?? '').trim() || '—',
-      label: String(row[sourceIdx] ?? '').trim() || '—',
-    });
+function getByAliases(record: Record<string, string>, aliases: string[]) {
+  const normalizedEntries = Object.entries(record).map(([key, value]) => [normalizeHeader(key), value] as const);
+  for (const alias of aliases) {
+    const match = normalizedEntries.find(([key]) => key === normalizeHeader(alias));
+    if (match?.[1]) return match[1];
   }
-  return parsed;
+  return '';
 }
 
-function parseExpenseRows(sheetName: string, rows: unknown[][]): LocalImportRow[] {
-  if (rows.length === 0) return [];
-  const headers = rows[0].map((cell) => String(cell ?? ''));
-  const amountIdx = headerIndex(headers, EXPENSE_REQUIRED[0].aliases);
-  const descriptionIdx = headerIndex(headers, EXPENSE_REQUIRED[1].aliases);
-  const categoryIdx = headerIndex(headers, EXPENSE_REQUIRED[2].aliases);
-  const dateIdx = headerIndex(headers, EXPENSE_REQUIRED[3].aliases);
-  const paymentIdx = headerIndex(headers, EXPENSE_REQUIRED[4].aliases);
-  const typeIdx = headerIndex(headers, EXPENSE_REQUIRED[5].aliases);
+const FIELD_ALIASES = {
+  amount: ['amount', 'value', 'total', 'sum', 'amt'],
+  date: ['date', 'transactiondate', 'txndate', 'incomedate', 'expensedate'],
+  kind: ['type', 'transactiontype', 'entrytype', 'txntype', 'incomeexpense', 'incomeorexpense'],
+  category: ['category', 'expensecategory', 'cat'],
+  description: ['description', 'details', 'detail', 'memo', 'notes', 'note', 'narration'],
+  source: ['source', 'incomesource', 'from', 'payee', 'payer'],
+  incomeType: ['incometype', 'incomecategory'],
+  paymentMethod: ['paymentmethod', 'payment', 'method', 'paidvia'],
+  transactionType: ['transactiontype', 'needwant', 'needorwant', 'need/want'],
+  subcategory: ['subcategory', 'subcat'],
+  recurring: ['recurring', 'repeat', 'monthly'],
+} as const;
 
-  const parsed: LocalImportRow[] = [];
-  for (let i = 1; i < rows.length; i += 1) {
-    const row = rows[i];
-    if (!row || row.every((cell) => String(cell ?? '').trim() === '')) continue;
-    parsed.push({
-      row: i + 1,
-      sheet: sheetName,
-      kind: 'expense',
-      date: parseDateValue(row[dateIdx]),
-      amount: parseAmount(row[amountIdx]),
-      type: String(row[categoryIdx] ?? '').trim() || '—',
-      label: String(row[descriptionIdx] ?? '').trim() || '—',
-      detail: [String(row[paymentIdx] ?? '').trim(), String(row[typeIdx] ?? '').trim()]
-        .filter(Boolean)
-        .join(' · '),
-    });
+const USED_NORMALIZED = new Set(
+  Object.values(FIELD_ALIASES)
+    .flat()
+    .map((alias) => normalizeHeader(alias))
+);
+
+function extractExtraFields(record: Record<string, string>) {
+  const extra: Record<string, string> = {};
+  for (const [key, value] of Object.entries(record)) {
+    if (!value) continue;
+    if (USED_NORMALIZED.has(normalizeHeader(key))) continue;
+    extra[key] = value;
   }
-  return parsed;
+  return extra;
 }
 
-function readWorkbook(buffer: ArrayBuffer) {
-  return XLSX.read(buffer, { type: 'array', cellDates: true });
+function detectRowKind(record: Record<string, string>): 'income' | 'expense' | null {
+  const typeValue = getByAliases(record, [...FIELD_ALIASES.kind]).toLowerCase();
+  if (typeValue) {
+    if (typeValue.includes('income') || /^(inc|credit|deposit|inflow|salary)$/.test(typeValue)) return 'income';
+    if (typeValue.includes('expense') || /^(exp|debit|outflow|spend|payment)$/.test(typeValue)) return 'expense';
+    if (typeValue === 'need' || typeValue === 'want') {
+      // Column is Need/Want, not income/expense — keep detecting from other fields.
+    }
+  }
+
+  const incomeType = getByAliases(record, [...FIELD_ALIASES.incomeType]);
+  const category = getByAliases(record, [...FIELD_ALIASES.category]);
+  const source = getByAliases(record, [...FIELD_ALIASES.source]);
+  const description = getByAliases(record, [...FIELD_ALIASES.description]);
+  const paymentMethod = getByAliases(record, [...FIELD_ALIASES.paymentMethod]);
+
+  const incomeHint = (value: string) =>
+    INCOME_TYPE_HINTS.some((hint) => value.toLowerCase().includes(hint));
+
+  if (incomeType && incomeHint(incomeType)) return 'income';
+  if (category && incomeHint(category)) return 'income';
+  if (source && incomeHint(source)) return 'income';
+  if (description && /salary|payroll|wage|bonus|freelance|business income|investment return/i.test(description) && !paymentMethod) {
+    return 'income';
+  }
+
+  if (source && !paymentMethod) return 'income';
+  if (description || paymentMethod) return 'expense';
+  if (category && EXPENSE_CATEGORY_HINTS.some((hint) => category.toLowerCase().includes(hint))) return 'expense';
+
+  return 'expense';
 }
 
-function findSheet(workbook: XLSX.WorkBook, names: string[]) {
-  const targets = names.map((name) => name.toLowerCase());
-  return workbook.SheetNames.find((name) => targets.includes(name.toLowerCase()));
+function isValidIsoDate(value: string) {
+  return /^\d{4}-\d{2}-\d{2}$/.test(value);
+}
+
+function parseSheet(sheetName: string, sheet: XLSX.WorkSheet) {
+  const matrix = sheetRows(sheet);
+  if (matrix.length === 0) {
+    return {
+      rows: [] as LocalImportRow[],
+      payload: { incomes: [], expenses: [] } as ImportCommitPayload,
+      errors: [] as string[],
+      extraColumns: [] as string[],
+    };
+  }
+
+  const headers = matrix[0].map((cell) => String(cell ?? '').trim());
+  const hasAmount = headers.some((header) => FIELD_ALIASES.amount.some((alias) => normalizeHeader(header) === normalizeHeader(alias)));
+  const hasDate = headers.some((header) => FIELD_ALIASES.date.some((alias) => normalizeHeader(header) === normalizeHeader(alias)));
+
+  const rows: LocalImportRow[] = [];
+  const payload: ImportCommitPayload = { incomes: [], expenses: [] };
+  const errors: string[] = [];
+  const extraColumnSet = new Set<string>();
+
+  if (!hasAmount) errors.push(`${sheetName}: missing an Amount column.`);
+  if (!hasDate) errors.push(`${sheetName}: missing a Date column.`);
+
+  for (let i = 1; i < matrix.length; i += 1) {
+    const rawRow = matrix[i];
+    if (!rawRow || rawRow.every((cell) => String(cell ?? '').trim() === '')) continue;
+
+    const record = recordFromRow(headers, rawRow);
+    const amount = parseAmount(getByAliases(record, [...FIELD_ALIASES.amount]));
+    const dateRaw = getByAliases(record, [...FIELD_ALIASES.date]);
+    const date = parseDateValue(dateRaw);
+    const kind = detectRowKind(record) ?? 'expense';
+    const extraFields = extractExtraFields(record);
+    Object.keys(extraFields).forEach((key) => extraColumnSet.add(key));
+
+    if (amount == null || amount <= 0) {
+      errors.push(`${sheetName} row ${i + 1}: amount must be greater than 0.`);
+      continue;
+    }
+    if (!isValidIsoDate(date)) {
+      errors.push(`${sheetName} row ${i + 1}: invalid date "${dateRaw || '—'}".`);
+      continue;
+    }
+
+    const category = getByAliases(record, [...FIELD_ALIASES.category]);
+    const description = getByAliases(record, [...FIELD_ALIASES.description]);
+    const source = getByAliases(record, [...FIELD_ALIASES.source]);
+    const incomeType = getByAliases(record, [...FIELD_ALIASES.incomeType]) || category;
+    const paymentMethod = getByAliases(record, [...FIELD_ALIASES.paymentMethod]);
+    const transactionType = getByAliases(record, [...FIELD_ALIASES.transactionType]);
+    const subcategory = getByAliases(record, [...FIELD_ALIASES.subcategory]);
+    const recurring = parseBoolean(getByAliases(record, [...FIELD_ALIASES.recurring]));
+
+    if (kind === 'income') {
+      const resolvedSource = source || description || category || 'Imported income';
+      payload.incomes.push({
+        amount,
+        source: resolvedSource,
+        date,
+        incomeType: incomeType || 'Other',
+        description: description || undefined,
+        recurring,
+        extraFields: Object.keys(extraFields).length ? extraFields : undefined,
+      });
+      rows.push({
+        row: i + 1,
+        sheet: sheetName,
+        kind,
+        date,
+        amount,
+        type: incomeType || category || 'Income',
+        label: resolvedSource,
+        detail: description || undefined,
+        extraFields,
+      });
+    } else {
+      const resolvedDescription = description || source || category || 'Imported expense';
+      payload.expenses.push({
+        amount,
+        description: resolvedDescription,
+        date,
+        category: category || 'Other',
+        subcategory: subcategory || undefined,
+        paymentMethod: paymentMethod || 'Other',
+        transactionType: transactionType || 'NEED',
+        recurring,
+        extraFields: Object.keys(extraFields).length ? extraFields : undefined,
+      });
+      rows.push({
+        row: i + 1,
+        sheet: sheetName,
+        kind,
+        date,
+        amount,
+        type: category || 'Expense',
+        label: resolvedDescription,
+        detail: [paymentMethod, transactionType].filter(Boolean).join(' · ') || undefined,
+        extraFields,
+      });
+    }
+  }
+
+  return {
+    rows,
+    payload,
+    errors,
+    extraColumns: Array.from(extraColumnSet).sort((a, b) => a.localeCompare(b)),
+  };
 }
 
 export function validateImportFile(file: File): string | null {
@@ -194,15 +329,9 @@ export function validateImportFile(file: File): string | null {
     file.type.includes('spreadsheet') ||
     file.type.includes('excel') ||
     file.type === 'text/csv';
-  if (!allowed) {
-    return 'Upload an Excel workbook (.xlsx, .xls) or CSV file.';
-  }
-  if (file.size > MAX_FILE_BYTES) {
-    return 'File is too large. Maximum size is 5 MB.';
-  }
-  if (file.size === 0) {
-    return 'The selected file is empty.';
-  }
+  if (!allowed) return 'Upload an Excel workbook (.xlsx, .xls) or CSV file.';
+  if (file.size > MAX_FILE_BYTES) return 'File is too large. Maximum size is 5 MB.';
+  if (file.size === 0) return 'The selected file is empty.';
   return null;
 }
 
@@ -213,6 +342,8 @@ export async function parseImportFile(file: File): Promise<LocalImportPreview> {
       fileName: file.name,
       sheetKind: 'unknown',
       rows: [],
+      extraColumns: [],
+      payload: { incomes: [], expenses: [] },
       incomeCount: 0,
       expenseCount: 0,
       incomeTotal: 0,
@@ -226,88 +357,53 @@ export async function parseImportFile(file: File): Promise<LocalImportPreview> {
   }
 
   const buffer = await file.arrayBuffer();
-  const workbook = readWorkbook(buffer);
-  const incomeSheetName = findSheet(workbook, ['Income', 'Incomes']);
-  const expenseSheetName = findSheet(workbook, ['Expenses', 'Expense']);
+  const workbook = XLSX.read(buffer, { type: 'array', cellDates: true });
 
-  let incomeRows: LocalImportRow[] = [];
-  let expenseRows: LocalImportRow[] = [];
-  const structureErrors: string[] = [];
-  const missingHeaders: string[] = [];
+  const parsedSheets = workbook.SheetNames.map((sheetName) => ({
+    sheetName,
+    ...parseSheet(sheetName, workbook.Sheets[sheetName]),
+  }));
 
-  if (incomeSheetName) {
-    const rows = sheetRows(workbook.Sheets[incomeSheetName]);
-    const headers = rows[0]?.map((cell) => String(cell ?? '')) ?? [];
-    missingHeaders.push(...missingRequiredHeaders(headers, 'income').map((h) => `Income.${h}`));
-    incomeRows = parseIncomeRows(incomeSheetName, rows);
-  }
+  const rows = parsedSheets.flatMap((sheet) => sheet.rows);
+  const payload: ImportCommitPayload = {
+    incomes: parsedSheets.flatMap((sheet) => sheet.payload.incomes),
+    expenses: parsedSheets.flatMap((sheet) => sheet.payload.expenses),
+  };
+  const structureErrors = parsedSheets.flatMap((sheet) => sheet.errors);
+  const extraColumns = Array.from(new Set(parsedSheets.flatMap((sheet) => sheet.extraColumns))).sort((a, b) =>
+    a.localeCompare(b)
+  );
 
-  if (expenseSheetName) {
-    const rows = sheetRows(workbook.Sheets[expenseSheetName]);
-    const headers = rows[0]?.map((cell) => String(cell ?? '')) ?? [];
-    missingHeaders.push(...missingRequiredHeaders(headers, 'expense').map((h) => `Expenses.${h}`));
-    expenseRows = parseExpenseRows(expenseSheetName, rows);
-  }
-
-  if (!incomeSheetName && !expenseSheetName) {
-    const firstSheet = workbook.SheetNames[0];
-    if (!firstSheet) {
-      structureErrors.push('The file has no sheets or rows.');
-    } else {
-      const rows = sheetRows(workbook.Sheets[firstSheet]);
-      const headers = rows[0]?.map((cell) => String(cell ?? '')) ?? [];
-      const kind = detectSheetKind(headers);
-      if (kind === 'income') {
-        missingHeaders.push(...missingRequiredHeaders(headers, 'income'));
-        incomeRows = parseIncomeRows(firstSheet, rows);
-      } else if (kind === 'expense') {
-        missingHeaders.push(...missingRequiredHeaders(headers, 'expense'));
-        expenseRows = parseExpenseRows(firstSheet, rows);
-      } else {
-        structureErrors.push(
-          'Could not detect SmartFin format. Use Income columns (amount, source, date, incomeType) or Expense columns (amount, description, category, date, paymentMethod, transactionType).'
-        );
-      }
-    }
-  }
-
-  if (missingHeaders.length > 0) {
-    structureErrors.push(`Missing required columns: ${missingHeaders.join(', ')}`);
-  }
-
-  const rows = [...incomeRows, ...expenseRows];
-  const incomeTotal = incomeRows.reduce((sum, row) => sum + (row.amount || 0), 0);
-  const expenseTotal = expenseRows.reduce((sum, row) => sum + (row.amount || 0), 0);
+  const incomeCount = payload.incomes.length;
+  const expenseCount = payload.expenses.length;
+  const incomeTotal = payload.incomes.reduce((sum, row) => sum + row.amount, 0);
+  const expenseTotal = payload.expenses.reduce((sum, row) => sum + row.amount, 0);
   const sheetKind: LocalImportPreview['sheetKind'] =
-    incomeRows.length > 0 && expenseRows.length > 0
-      ? 'mixed'
-      : incomeRows.length > 0
-        ? 'income'
-        : expenseRows.length > 0
-          ? 'expense'
-          : 'unknown';
+    incomeCount > 0 && expenseCount > 0 ? 'mixed' : incomeCount > 0 ? 'income' : expenseCount > 0 ? 'expense' : 'unknown';
 
   const hasData = rows.length > 0;
-  const structureValid = structureErrors.length === 0 && missingHeaders.length === 0;
+  const structureValid = hasData;
 
   return {
     fileName: file.name,
     sheetKind,
     rows,
-    incomeCount: incomeRows.length,
-    expenseCount: expenseRows.length,
+    extraColumns,
+    payload,
+    incomeCount,
+    expenseCount,
     incomeTotal,
     expenseTotal,
-    missingHeaders,
-    structureErrors,
+    missingHeaders: [],
+    structureErrors: hasData ? structureErrors.slice(0, 8) : ['No importable rows were found. Check Amount and Date columns.'],
     structureValid,
     hasData,
-    canSend: structureValid && hasData,
+    canSend: hasData,
   };
 }
 
 export function formatImportValidationError(preview: LocalImportPreview) {
   if (preview.structureErrors.length > 0) return preview.structureErrors[0];
   if (!preview.hasData) return 'No data rows were found in the file.';
-  return 'The file does not match the SmartFin import format.';
+  return 'Unable to import this file.';
 }

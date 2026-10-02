@@ -11,6 +11,7 @@ export interface IIncome extends Document {
   incomeType: IncomeType;
   description?: string;
   recurring: boolean;
+  importMetadata?: Record<string, unknown>;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -51,6 +52,9 @@ const incomeSchema = new Schema<IIncome>(
     recurring: {
       type: Boolean,
       default: false,
+    },
+    importMetadata: {
+      type: Schema.Types.Mixed,
     },
   },
   { timestamps: true }

@@ -1,4 +1,5 @@
-import { apiDownload, apiUpload } from '../lib/api';
+import { apiDownload, apiRequest, apiUpload } from '../lib/api';
+import { ImportCommitPayload } from '../lib/import-parser';
 
 export type ImportPreviewRow = {
   row: number;
@@ -68,5 +69,11 @@ export const importService = {
     const formData = new FormData();
     formData.append('file', file);
     return apiUpload<ImportCommitResponse>('/api/import/', formData);
+  },
+  commitRows(payload: ImportCommitPayload) {
+    return apiRequest<ImportCommitResponse>('/api/import/', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
   },
 };

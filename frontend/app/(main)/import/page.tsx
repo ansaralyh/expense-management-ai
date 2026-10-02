@@ -38,8 +38,6 @@ const STEPS = [
   { id: 4, label: 'Import rows' },
 ];
 
-const PREVIEW_ROW_LIMIT = 25;
-
 function activeStep(
   localPreview: LocalImportPreview | null,
   result: ImportCommitResponse | null,
@@ -52,26 +50,21 @@ function activeStep(
 }
 
 function LocalPreviewTable({ preview }: { preview: LocalImportPreview }) {
-  const visibleRows = preview.rows.slice(0, PREVIEW_ROW_LIMIT);
-  const hiddenCount = preview.rows.length - visibleRows.length;
+  const totalRows = preview.rows.length;
+  const netBalance = preview.incomeTotal - preview.expenseTotal;
 
   return (
     <div className="mt-6 w-full text-left space-y-4">
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {[
+          { label: 'Total rows', value: totalRows, sub: preview.fileName, color: 'text-slate-300' },
           { label: 'Income rows', value: preview.incomeCount, sub: formatRs(preview.incomeTotal), color: 'text-emerald-400' },
           { label: 'Expense rows', value: preview.expenseCount, sub: formatRs(preview.expenseTotal), color: 'text-amber-400' },
           {
-            label: 'Net from file',
-            value: formatRs(preview.incomeTotal - preview.expenseTotal),
+            label: 'Net balance',
+            value: formatRs(netBalance),
             sub: 'Income − expenses',
-            color: 'text-teal-400',
-          },
-          {
-            label: 'Format',
-            value: preview.sheetKind === 'mixed' ? 'Mixed' : preview.sheetKind === 'income' ? 'Income' : preview.sheetKind === 'expense' ? 'Expenses' : 'Unknown',
-            sub: preview.structureValid ? 'Headers OK' : 'Fix headers',
-            color: preview.structureValid ? 'text-emerald-400' : 'text-rose-400',
+            color: netBalance >= 0 ? 'text-teal-400' : 'text-rose-400',
           },
         ].map((card) => (
           <div key={card.label} className="rounded-xl border border-slate-800 bg-slate-950/70 px-3 py-3">
@@ -82,30 +75,59 @@ function LocalPreviewTable({ preview }: { preview: LocalImportPreview }) {
         ))}
       </div>
 
-      {!preview.structureValid && (
+      {!preview.canSend && (
         <div className="rounded-xl border border-rose-500/20 bg-rose-500/10 px-4 py-3 text-sm text-rose-300">
-          {preview.structureErrors[0] || 'The file does not match the SmartFin import format.'}
+          {preview.structureErrors[0] || 'No importable rows were found in this file.'}
         </div>
       )}
 
-      {visibleRows.length > 0 && (
+      {preview.structureErrors.length > 0 && preview.canSend && (
+        <div className="rounded-xl border border-amber-500/20 bg-amber-500/10 px-4 py-3 text-sm text-amber-200 space-y-1">
+          <p className="font-medium">Some rows were skipped during preview:</p>
+          {preview.structureErrors.map((message) => (
+            <p key={message} className="text-xs text-amber-100/90">
+              {message}
+            </p>
+          ))}
+        </div>
+      )}
+
+      {preview.extraColumns.length > 0 && (
+        <div className="flex flex-wrap gap-2">
+          {preview.extraColumns.map((column) => (
+            <span
+              key={column}
+              className="inline-flex items-center rounded-full border border-slate-700 bg-slate-950 px-2.5 py-1 text-[10px] font-medium uppercase tracking-wide text-slate-400"
+            >
+              {column}
+            </span>
+          ))}
+        </div>
+      )}
+
+      {preview.rows.length > 0 && (
         <div className="rounded-2xl border border-slate-800 overflow-hidden bg-slate-950/80">
           <p className="px-4 py-3 text-sm font-semibold text-slate-200 border-b border-slate-800">
             File preview ({preview.rows.length} row{preview.rows.length === 1 ? '' : 's'})
           </p>
-          <div className="overflow-x-auto">
+          <div className="overflow-auto max-h-[28rem] custom-scrollbar">
             <table className="min-w-full text-xs">
-              <thead>
+              <thead className="sticky top-0 bg-slate-950 z-10">
                 <tr className="border-b border-slate-800 text-slate-500">
                   <th className="px-4 py-2.5 text-left font-medium">Date</th>
                   <th className="px-4 py-2.5 text-left font-medium">Type</th>
                   <th className="px-4 py-2.5 text-left font-medium">Category</th>
                   <th className="px-4 py-2.5 text-left font-medium">Description / Source</th>
+                  {preview.extraColumns.map((column) => (
+                    <th key={column} className="px-4 py-2.5 text-left font-medium">
+                      {column}
+                    </th>
+                  ))}
                   <th className="px-4 py-2.5 text-right font-medium">Amount</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800/80">
-                {visibleRows.map((row) => (
+                {preview.rows.map((row) => (
                   <tr key={`${row.sheet}-${row.row}-${row.kind}`} className="text-slate-300">
                     <td className="px-4 py-2.5 whitespace-nowrap">{row.date || '—'}</td>
                     <td className="px-4 py-2.5">
@@ -124,6 +146,11 @@ function LocalPreviewTable({ preview }: { preview: LocalImportPreview }) {
                       {row.label}
                       {row.detail ? <span className="text-slate-500"> · {row.detail}</span> : null}
                     </td>
+                    {preview.extraColumns.map((column) => (
+                      <td key={`${row.sheet}-${row.row}-${column}`} className="px-4 py-2.5 max-w-[160px] truncate text-slate-400">
+                        {row.extraFields[column] || '—'}
+                      </td>
+                    ))}
                     <td className="px-4 py-2.5 text-right font-medium whitespace-nowrap">
                       {row.amount == null ? '—' : formatRs(row.amount)}
                     </td>
@@ -132,11 +159,6 @@ function LocalPreviewTable({ preview }: { preview: LocalImportPreview }) {
               </tbody>
             </table>
           </div>
-          {hiddenCount > 0 && (
-            <p className="px-4 py-2 text-xs text-slate-500 border-t border-slate-800">
-              And {hiddenCount} more row{hiddenCount === 1 ? '' : 's'}…
-            </p>
-          )}
         </div>
       )}
     </div>
@@ -210,36 +232,28 @@ export default function ImportPage() {
   };
 
   const handleSend = async () => {
-    if (!file || sending) return;
+    if (!localPreview?.canSend || sending) return;
 
     setSending(true);
     setError('');
     setServerPreview(null);
 
     try {
-      const parsed = await parseImportFile(file);
-      setLocalPreview(parsed);
-
-      if (!parsed.canSend) {
-        setError(formatImportValidationError(parsed));
-        return;
-      }
-
-      const preview = await importService.preview(file);
-      setServerPreview(preview);
-
-      if (!preview.ready) {
-        setError(
-          `${preview.errorCount} row${preview.errorCount === 1 ? '' : 's'} need fixing before import. See details below.`
-        );
-        return;
-      }
-
-      const commitResult = await importService.commit(file);
+      const commitResult = await importService.commitRows(localPreview.payload);
       notifyLedgerChanged();
       setResult(commitResult);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Import failed.');
+      if (err instanceof ApiError) {
+        console.error('[import] commit failed', {
+          status: err.status,
+          message: err.message,
+          payload: localPreview.payload,
+        });
+        setError(err.message || `Import failed with status ${err.status}.`);
+      } else {
+        console.error('[import] commit failed', err);
+        setError('Import failed.');
+      }
     } finally {
       setSending(false);
     }
@@ -379,45 +393,65 @@ export default function ImportPage() {
               </div>
               <div>
                 <h2 className="text-lg font-semibold text-slate-100">
-                  {parsing ? 'Reading your file…' : 'Drop your file here'}
+                  {parsing ? 'Reading your file…' : localPreview ? 'Preview ready' : 'Drop your file here'}
                 </h2>
-                <p className="text-sm text-slate-400 mt-1">or click below · .xlsx, .xls, .csv · max 5 MB</p>
+                <p className="text-sm text-slate-400 mt-1">
+                  {localPreview
+                    ? 'Review the summary and table below. Nothing is sent until you click Import rows.'
+                    : 'or click below · .xlsx, .xls, .csv · max 5 MB'}
+                </p>
               </div>
               {file && !parsing && (
                 <div className="inline-flex items-center gap-2 rounded-full bg-slate-950 border border-slate-800 px-4 py-2 text-sm text-slate-300">
                   <FileText className="w-4 h-4 text-emerald-400" />
                   {file.name}
+                  {localPreview ? (
+                    <span className="text-xs text-slate-500">
+                      · {localPreview.rows.length} row{localPreview.rows.length === 1 ? '' : 's'}
+                    </span>
+                  ) : null}
                 </div>
               )}
 
               <div className="flex flex-wrap items-center justify-center gap-3">
-                <button
-                  type="button"
-                  disabled={parsing || sending}
-                  onClick={() => inputRef.current?.click()}
-                  className="px-6 py-3 rounded-xl bg-ink-900 hover:bg-ink-800 disabled:opacity-50 text-white font-medium text-sm flex items-center gap-2 shadow-lg shadow-black/20"
-                >
-                  <Upload className="w-4 h-4" />
-                  {file ? 'Choose another file' : 'Browse files'}
-                </button>
-
-                {file && (
+                {!file ? (
                   <button
                     type="button"
-                    disabled={!canSend || sending}
-                    onClick={() => void handleSend()}
-                    className="px-6 py-3 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 disabled:opacity-40 disabled:cursor-not-allowed text-white font-semibold text-sm flex items-center gap-2 shadow-lg shadow-emerald-900/30"
+                    disabled={parsing || sending}
+                    onClick={() => inputRef.current?.click()}
+                    className="px-6 py-3 rounded-xl bg-ink-900 hover:bg-ink-800 disabled:opacity-50 text-white font-medium text-sm flex items-center gap-2 shadow-lg shadow-black/20"
                   >
-                    {sending ? (
-                      <>
-                        <Loader2 className="w-4 h-4 animate-spin" /> Sending…
-                      </>
-                    ) : (
-                      <>
-                        <Send className="w-4 h-4" /> Send
-                      </>
-                    )}
+                    <Upload className="w-4 h-4" />
+                    Browse files
                   </button>
+                ) : (
+                  <>
+                    <button
+                      type="button"
+                      disabled={parsing || sending}
+                      onClick={reset}
+                      className="px-6 py-3 rounded-xl border border-slate-700 hover:bg-slate-950 disabled:opacity-50 text-slate-200 font-medium text-sm flex items-center gap-2"
+                    >
+                      <Upload className="w-4 h-4" />
+                      Choose another file
+                    </button>
+                    <button
+                      type="button"
+                      disabled={!canSend || sending}
+                      onClick={() => void handleSend()}
+                      className="px-6 py-3 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 disabled:opacity-40 disabled:cursor-not-allowed text-white font-semibold text-sm flex items-center gap-2 shadow-lg shadow-emerald-900/30"
+                    >
+                      {sending ? (
+                        <>
+                          <Loader2 className="w-4 h-4 animate-spin" /> Importing…
+                        </>
+                      ) : (
+                        <>
+                          <Send className="w-4 h-4" /> Import rows
+                        </>
+                      )}
+                    </button>
+                  </>
                 )}
               </div>
 
@@ -507,9 +541,9 @@ export default function ImportPage() {
             <div className="p-5 rounded-2xl bg-slate-900 border border-slate-800">
               <p className="text-sm font-semibold text-slate-200 mb-2">How it works</p>
               <p className="text-xs text-slate-400 leading-relaxed">
-                Drop or browse for a file — we parse it locally and show a preview immediately. Click{' '}
-                <strong className="text-emerald-300">Send</strong> when you are ready; we validate headers and row data,
-                then import into your ledger.
+                Drop or browse for a file — we parse it locally with SheetJS and show a preview immediately. Click{' '}
+                <strong className="text-emerald-300">Import rows</strong> when you are ready to send the file to your
+                ledger. No data leaves your browser until then.
               </p>
             </div>
             <div className="p-5 rounded-2xl bg-slate-900 border border-slate-800 text-xs text-slate-400 space-y-2">
